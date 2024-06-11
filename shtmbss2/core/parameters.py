@@ -201,6 +201,7 @@ class NetworkParameterGroups:
 
     class Network(ParameterGroup):
         def __init__(self):
+            self.replay_mode: str = None
             self.num_symbols: int = None
             self.num_neurons: int = None
             self.pattern_size: int = None

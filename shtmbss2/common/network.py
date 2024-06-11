@@ -96,6 +96,7 @@ class SHTMBase(ABC):
         self.experiment_subnum = experiment_subnum
         self.experiment_episodes = 0
         self.instance_id = instance_id
+        self.network_state = NetworkState.PREDICTIVE
 
         self.run_state = False
 
@@ -193,11 +194,17 @@ class SHTMBase(ABC):
         for _ in range(self.p.encoding.num_repetitions):
             for i_seq, sequence in enumerate(self.p.experiment.sequences):
                 for i_element, element in enumerate(sequence):
-                    spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
+                    if self.network_state == NetworkState.REPLAY:
+                        if i_element == 0 and self.p.network.replay_mode == ReplayMode.PARALLEL:
+                            spike_time = self.p.encoding.t_exc_start
+                        else:
+                            break
+                    else:
+                        spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
                     spike_times[SYMBOLS[element]].append(spike_time)
                 sequence_offset = spike_time + self.p.encoding.dt_seq
 
-        self.last_ext_spike_time = spike_time
+        self.last_ext_spike_time = max([max(s, default=0) for s in spike_times], default=0)
 
         log.debug(f'Spike times:')
         for i_letter, letter_spikes in enumerate(spike_times):
@@ -297,6 +304,38 @@ class SHTMBase(ABC):
     def reset(self, store_to_cache=False):
         pass
 
+    def set_state(self, new_network_state):
+        # define new neuron/network params based on network-state
+        if new_network_state == NetworkState.PREDICTIVE:
+            v_thresh = self.p.neurons.excitatory.v_thresh
+            theta_dAP = self.p.neurons.dendrite.theta_dAP
+            weight_factor = 1
+        elif new_network_state == NetworkState.REPLAY:
+            v_thresh = 5
+            theta_dAP = 41.3
+            weight_factor = 7.5
+        else:
+            return
+
+        # update neuron parameters
+        for i_sym in range(len(self.neurons_exc)):
+            self.neurons_exc[i_sym].set(V_th=v_thresh,
+                                        theta_dAP=theta_dAP)
+
+        # update exc-inh weights
+        if self.p.synapses.dyn_weight_calculation:
+            self.p.synapses.j_exc_inh_psp = (1.2 * self.p.neurons.inhibitory.v_thresh /
+                                             self.p.network.pattern_size / weight_factor)
+            self.p.synapses.w_exc_inh = psp_max_2_psc_max(self.p.synapses.j_exc_inh_psp,
+                                                          self.p.neurons.inhibitory.tau_m,
+                                                          self.p.neurons.inhibitory.tau_syn_E,
+                                                          self.p.neurons.inhibitory.c_m)
+        for exc_to_inh in self.exc_to_inh:
+            weights = np.full(exc_to_inh.get("weight", format="array").shape, self.p.synapses.w_exc_inh)
+            exc_to_inh.set(weight=weights)
+
+        self.network_state = new_network_state
+
     def run_sim(self, runtime):
         pynn.run(runtime)
         self.run_state = True
@@ -353,7 +392,7 @@ class SHTMBase(ABC):
 
         for i_seq in range(n_cols):
             if n_cols > 1:
-                x_lim_upper = x_lim_lower + (len(self.p.experiment.sequences[0]) - 0.5) * self.p.encoding.dt_stm + self.p.encoding.t_exc_start
+                x_lim_upper = x_lim_lower + (len(self.p.experiment.sequences[i_seq]) - 0.5) * self.p.encoding.dt_stm + self.p.encoding.t_exc_start
             for i_symbol in symbols:
 
                 if len(symbols) == 1:

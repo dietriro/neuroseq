@@ -58,6 +58,16 @@ class RunType(NamedStorage):
     SINGLE = "single"
 
 
+class NetworkState(NamedStorage):
+    PREDICTIVE = "predictive"
+    REPLAY = "replay"
+
+
+class ReplayMode(NamedStorage):
+    PARALLEL = "parallel"
+    CONSECUTIVE = "consecutive"
+
+
 class FileType(NamedStorage):
     DATA = 'data'
     FIGURE = 'figure'
