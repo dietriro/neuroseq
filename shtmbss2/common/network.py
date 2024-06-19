@@ -76,6 +76,7 @@ class SHTMBase(ABC):
         # Declare neuron populations
         self.neurons_exc = None
         self.neurons_inh = None
+        self.neurons_inh_global = None
         self.neurons_ext = None
         self.neurons_add = None
 
@@ -84,10 +85,13 @@ class SHTMBase(ABC):
         self.exc_to_exc = None
         self.exc_to_inh = None
         self.inh_to_exc = None
+        self.exc_to_inh_global = None
+        self.inh_to_exc_global = None
 
         # Declare recordings
         self.rec_neurons_exc = None
         self.spike_times_ext = None
+        self.max_spike_time = None
         self.last_ext_spike_time = None
         self.neuron_events = None
 
@@ -160,6 +164,7 @@ class SHTMBase(ABC):
         self.neurons_exc = self.init_all_neurons_exc()
 
         self.neurons_inh = self.init_neurons_inh()
+        self.neurons_inh_global = self.init_neurons_inh()
 
         self.neurons_ext = Population(self.p.network.num_symbols, SpikeSourceArray())
 
@@ -260,6 +265,15 @@ class SHTMBase(ABC):
                 synapse_type=StaticSynapse(weight=weight, delay=self.p.synapses.delay_exc_inh),
                 receptor_type=self.p.synapses.receptor_exc_inh))
 
+        self.exc_to_inh_global = []
+        for i in range(self.p.network.num_symbols):
+            self.exc_to_inh_global.append(Projection(
+                self.get_neurons(NeuronType.Soma, symbol_id=i),
+                PopulationView(self.neurons_inh_global, [i]),
+                AllToAllConnector(),
+                synapse_type=StaticSynapse(weight=0, delay=self.p.synapses.delay_exc_inh),
+                receptor_type=self.p.synapses.receptor_exc_inh))
+
         self.inh_to_exc = []
         for i in range(self.p.network.num_symbols):
             self.inh_to_exc.append(Projection(
@@ -268,6 +282,18 @@ class SHTMBase(ABC):
                 AllToAllConnector(),
                 synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc, delay=self.p.synapses.delay_inh_exc),
                 receptor_type=self.p.synapses.receptor_inh_exc))
+
+        self.inh_to_exc_global = []
+        for i in range(self.p.network.num_symbols):
+            inh_to_exc_global_i = list()
+            for k_symbol in range(self.p.network.num_symbols):
+                inh_to_exc_global_i.append(Projection(
+                    PopulationView(self.neurons_inh_global, [i]),
+                    self.get_neurons(NeuronType.Soma, symbol_id=k_symbol),
+                    AllToAllConnector(),
+                    synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc, delay=self.p.synapses.delay_inh_exc),
+                    receptor_type=self.p.synapses.receptor_inh_exc))
+            self.inh_to_exc_global.append(inh_to_exc_global_i)
 
     def init_prerun(self):
         pass
@@ -304,7 +330,7 @@ class SHTMBase(ABC):
     def reset(self, store_to_cache=False):
         pass
 
-    def set_state(self, new_network_state):
+    def set_state(self, new_network_state, target=None):
         # define new neuron/network params based on network-state
         if new_network_state == NetworkState.PREDICTIVE:
             v_thresh = self.p.neurons.excitatory.v_thresh
@@ -319,7 +345,11 @@ class SHTMBase(ABC):
 
         # update neuron parameters
         for i_sym in range(len(self.neurons_exc)):
-            self.neurons_exc[i_sym].set(V_th=v_thresh,
+            if target is not None and target == i_sym:
+                v_thresh_tmp = v_thresh * 0.8
+            else:
+                v_thresh_tmp = v_thresh
+            self.neurons_exc[i_sym].set(V_th=v_thresh_tmp,
                                         theta_dAP=theta_dAP)
 
         # update exc-inh weights
@@ -334,7 +364,34 @@ class SHTMBase(ABC):
             weights = np.full(exc_to_inh.get("weight", format="array").shape, self.p.synapses.w_exc_inh)
             exc_to_inh.set(weight=weights)
 
+        if new_network_state == NetworkState.REPLAY:
+            for exc_to_inh_global in self.exc_to_inh_global:
+                weights = np.full(exc_to_inh_global.get("weight", format="array").shape, self.p.synapses.w_exc_inh * 80)
+                exc_to_inh_global.set(weight=weights)
+
         self.network_state = new_network_state
+
+    def update_adapt_thresholds(self):
+        con_id = 0
+        for i_sym in range(self.p.network.num_symbols):
+            spikes_i = self.neuron_events[NeuronType.Soma][i_sym]
+            for k_sym in range(self.p.network.num_symbols):
+                if i_sym == k_sym:
+                    continue
+                weights = self.exc_to_exc[con_id].get("weight", format="array")
+                spikes_k = self.neuron_events[NeuronType.Soma][k_sym]
+                finished = False
+                for i_neuron, spikes_i_i in enumerate(spikes_i):
+                    for k_neuron, spikes_k_k in enumerate(spikes_k):
+                        if 4 < spikes_k_k - spikes_i_i < 60:
+                            if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
+                                V_th = self.neurons_exc[i_sym].get("V_th")
+                                self.neurons_exc[i_sym].set(V_th=V_th * 0.9)
+                                finished = True
+                                break
+                    if finished:
+                        break
+                con_id += 1
 
     def run_sim(self, runtime):
         pynn.run(runtime)
@@ -355,31 +412,36 @@ class SHTMBase(ABC):
             size = (12, 10)
 
         if type(neuron_types) is str and neuron_types == "all":
-            neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory]
+            neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory, NeuronType.InhibitoryGlobal]
         elif type(neuron_types) is list:
             pass
         else:
             return
 
         if run_id is None:
-            max_time = self.p.experiment.runtime
+            if x_lim_lower is None:
+                x_lim_lower = 0.
+            if x_lim_upper is None:
+                x_lim_upper = self.p.experiment.runtime
         else:
             single_run_length = self.calc_runtime_single() - self.p.encoding.t_exc_start
-            x_lim_lower = run_id * single_run_length
-            x_lim_upper = (run_id + 1) * single_run_length - self.p.encoding.dt_seq * 0.9
-            max_time = x_lim_upper
-
-        if x_lim_lower is None:
-            x_lim_lower = 0.
-        if x_lim_upper is None:
-            x_lim_upper = max_time
+            if x_lim_lower is None:
+                x_lim_lower = run_id * single_run_length
+            if x_lim_upper is None:
+                x_lim_upper = (run_id + 1) * single_run_length - self.p.encoding.dt_seq * 0.9
+                if self.network_state == NetworkState.REPLAY:
+                    x_lim_upper = self.max_spike_time + self.p.encoding.t_exc_start
 
         if type(symbols) is str and symbols == "all":
             symbols = range(self.p.network.num_symbols)
         elif type(symbols) is list:
             pass
 
-        n_cols = 1 if not separate_seqs else len(self.p.experiment.sequences)
+        if self.network_state == NetworkState.REPLAY or not separate_seqs:
+            n_cols = 1
+        else:
+            n_cols = len(self.p.experiment.sequences)
+
         if len(symbols) == 1:
             fig, axs = plt.subplots(nrows=1, ncols=n_cols, figsize=size)
         else:
@@ -407,6 +469,11 @@ class SHTMBase(ABC):
                     spikes = deepcopy(self.neuron_events[neurons_i][i_symbol])
                     if neurons_i == NeuronType.Inhibitory:
                         spikes.append([])
+                    elif neurons_i == NeuronType.InhibitoryGlobal:
+                        if self.network_state == NetworkState.PREDICTIVE:
+                            continue
+                        for _ in range(self.p.network.num_neurons + 1):
+                            spikes.insert(0, [])
                     else:
                         spikes.insert(0, [])
                     if neurons_i == NeuronType.Dendrite:
@@ -420,7 +487,7 @@ class SHTMBase(ABC):
                         line_lengths = 1
 
                         ax.eventplot(spikes, linewidths=line_widths, linelengths=line_lengths,
-                                     label=neurons_i.NAME.capitalize(), color=f"C{neurons_i.ID}")
+                                     label=neurons_i.NAME.capitalize(), color=f"C{neurons_i.COLOR_ID}")
 
                 # plot external spikes as reference lines
                 for spike_time_ext_sym_i in self.spike_times_ext[i_symbol]:
@@ -429,16 +496,19 @@ class SHTMBase(ABC):
 
                 # Configure the plot layout
                 ax.set_xlim(x_lim_lower, x_lim_upper)
-                ax.set_ylim(-1, self.p.network.num_neurons + 1)
+                ax.set_ylim(-1, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY))
 
                 if i_seq < 1:
-                    ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2))
+                    ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2
+                                             + int(self.network_state == NetworkState.REPLAY)))
                     ax.set_ylabel(id_to_symbol(i_symbol), weight='bold',
                                   fontsize=self.p_plot.events.fontsize.subplot_labels)
 
                     # Generate y-tick-labels based on number of neurons per symbol
                     y_tick_labels = ['Inh', '', '0'] + ['' for _ in range(self.p.network.num_neurons - 2)] + [
                         str(self.p.network.num_neurons - 1)]
+                    if self.network_state == NetworkState.REPLAY:
+                        y_tick_labels += ['Inh-G']
                     ax.set_yticklabels(y_tick_labels, rotation=45, fontsize=self.p_plot.events.fontsize.tick_labels)
 
                 if show_grid:
@@ -759,6 +829,7 @@ class SHTMTotal(SHTMBase, ABC):
 
     def _retrieve_neuron_data(self):
         self.neuron_events = dict()
+        self.max_spike_time = 0
 
         for neuron_type in NeuronType.get_all_types():
             self.neuron_events[neuron_type] = list()
@@ -766,6 +837,12 @@ class SHTMTotal(SHTMBase, ABC):
                 events = self.get_neuron_data(neuron_type, value_type=RecTypes.SPIKES, symbol_id=i_symbol,
                                               dtype=list)
                 self.neuron_events[neuron_type].append(events)
+                for neuron_events in events:
+                    if len(neuron_events) <= 0:
+                        continue
+                    max_spike_time = max(neuron_events)
+                    if max_spike_time > self.max_spike_time:
+                        self.max_spike_time = float(max_spike_time)
 
     def get_spike_times(self, runtime, dt):
         log.detail("Calculating spike times")
@@ -873,6 +950,9 @@ class SHTMTotal(SHTMBase, ABC):
 
             if self.p.plasticity.learning_rate_decay is not None:
                 self.p.plasticity.learning_factor *= self.p.plasticity.learning_rate_decay
+
+            if self.network_state == NetworkState.REPLAY:
+                self.update_adapt_thresholds()
 
         # print performance results
         self.print_performance_results()

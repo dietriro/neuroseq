@@ -94,6 +94,7 @@ synapses:
   w_exc_exc: 0.0e-3
   w_exc_inh: 3.8747
   w_inh_exc: 12.9155
+  w_exc_inh_global: 10
   p_exc_exc: 0.2
   receptor_ext_exc: "I_1"
   receptor_exc_exc: "I_2"
