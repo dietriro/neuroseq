@@ -117,7 +117,7 @@ class SHTMBase(ABC):
             instance_offset = 0
         np.random.seed(self.p.experiment.seed_offset + instance_offset)
 
-        self.random_seed = 1234
+        self.random_seed = self.p.experiment.seed_offset + instance_offset
 
     def load_params(self, experiment_type, experiment_id, experiment_num, instance_id, **kwargs):
         self.p_plot.load_default_params()
