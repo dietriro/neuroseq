@@ -20,9 +20,9 @@ chmod +x conda.sh
 
 ```bash
 # Create a conda environment (with boost-cpp and gxx being optional, only necessary for e.g. a bare ubuntu docker)
-conda create --name shtm-pynn -c conda-forge nest-simulator boost-cpp gxx_linux-64
+conda create --name shtm-pynn -c conda-forge nest-simulator=3.6.0 boost-cpp gxx_linux-64
 # Source new environment
-source activate shtm-pynn
+conda activate shtm-pynn
 # Add shtm-pynn package to Python Path
 export PYTHONPATH=/path/to/repository:$PYTHONPATH
 # Alternatively, install the package
@@ -34,7 +34,9 @@ pip install .
 
 ```bash
 # Make sure to source conda environment
-source activate shtm-pynn
+conda activate shtm-pynn
+# Make sure that the repository is available on the Python Path
+export PYTHONPATH=/path/to/repository:$PYTHONPATH
 # Install neuron into current nest installation
 python test/install_mc_neuron.py
 ```
@@ -43,7 +45,7 @@ python test/install_mc_neuron.py
 
 ```bash
 # Make sure to source conda environment
-source activate shtm-pynn
+conda activate shtm-pynn
 # Download branch fixes
 git clone -b fixes git@github.com:dietriro/PyNN.git
 # Change directory into new repository

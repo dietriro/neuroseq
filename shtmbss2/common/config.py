@@ -19,14 +19,22 @@ class NeuronType:
     class Dendrite:
         ID = 0
         NAME = "dendrite"
+        COLOR_ID = 0
 
     class Soma:
         ID = 1
         NAME = "soma"
+        COLOR_ID = 1
 
     class Inhibitory:
         ID = 2
         NAME = "inhibitory"
+        COLOR_ID = 2
+
+    class InhibitoryGlobal:
+        ID = 3
+        NAME = "inhibitory_global"
+        COLOR_ID = 2
 
     @staticmethod
     def get_all_types():
@@ -56,6 +64,16 @@ class Backends(NamedStorage):
 class RunType(NamedStorage):
     MULTI = "multi"
     SINGLE = "single"
+
+
+class NetworkState(NamedStorage):
+    PREDICTIVE = "predictive"
+    REPLAY = "replay"
+
+
+class ReplayMode(NamedStorage):
+    PARALLEL = "parallel"
+    CONSECUTIVE = "consecutive"
 
 
 class FileType(NamedStorage):

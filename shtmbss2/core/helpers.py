@@ -90,9 +90,9 @@ def psp_max_2_psc_max(psp_max, tau_m, tau_s, C_m):
 class Latex:
     @staticmethod
     def print_title(title, num_cols=3):
-        print("\hline")
-        print(f"\multicolumn{{{num_cols}}}{{c}}{{\\bfseries {title}}} \\\\ ")
-        print("\hline")
+        print("\\hline")
+        print(f"\\multicolumn{{{num_cols}}}{{c}}{{\\bfseries {title}}} \\\\ ")
+        print("\\hline")
 
     @staticmethod
     def print_row(row, order=None, comment=None, hline=False):

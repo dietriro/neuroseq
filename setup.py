@@ -21,7 +21,7 @@ setup(
         "neo",
         "DateTime",
         "tabulate",
-        "nestml",
+        "nestml==6.0.0",
         "pygsl"
     ],
 )

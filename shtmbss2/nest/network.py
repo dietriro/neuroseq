@@ -21,7 +21,8 @@ pynn.setup(timestep=0.1, t_flush=500, spike_precision="on_grid")
 RECORDING_VALUES = {
     NeuronType.Soma: {RecTypes.SPIKES: "spikes", RecTypes.V: "V_m"},
     NeuronType.Dendrite: {RecTypes.SPIKES: "dAP", RecTypes.V: "I_dend"},
-    NeuronType.Inhibitory: {RecTypes.SPIKES: "spikes", RecTypes.V: "v"}
+    NeuronType.Inhibitory: {RecTypes.SPIKES: "spikes", RecTypes.V: "v"},
+    NeuronType.InhibitoryGlobal: {RecTypes.SPIKES: "spikes", RecTypes.V: "v"}
 }
 MCNeuron = pynn.NativeCellType
 
@@ -131,14 +132,16 @@ class SHTMBase(network.SHTMBase, ABC):
         neurons = None
         if neuron_type == NeuronType.Inhibitory:
             neurons = self.neurons_inh
+        elif neuron_type == NeuronType.InhibitoryGlobal:
+            neurons = self.neurons_inh_global
         elif neuron_type in [NeuronType.Dendrite, NeuronType.Soma]:
             neurons = self.neurons_exc
 
         if symbol_id is None:
             return neurons
         else:
-            if neuron_type == NeuronType.Inhibitory:
-                return pynn.PopulationView(self.neurons_inh, [symbol_id])
+            if neuron_type == NeuronType.Inhibitory or neuron_type == NeuronType.InhibitoryGlobal:
+                return pynn.PopulationView(neurons, [symbol_id])
             else:
                 return neurons[symbol_id]
 
