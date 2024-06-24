@@ -221,6 +221,7 @@ class NetworkParameterGroups:
     class Plasticity(ParameterGroup):
         def __init__(self):
             self.type: str = None
+            self.enable_structured_stdp: bool = None
             self.execution_start: float = None
             self.execution_interval: float = None
             self.learning_factor: float = None

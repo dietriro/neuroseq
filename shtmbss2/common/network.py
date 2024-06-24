@@ -230,7 +230,14 @@ class SHTMBase(ABC):
                 if i == j:
                     i_w += 1
                     continue
-                weight = self.p.synapses.w_exc_exc if exc_to_exc is None else exc_to_exc[i_w]
+                if exc_to_exc is not None:
+                    weight = exc_to_exc[i_w]
+                elif not self.p.plasticity.enable_structured_stdp:
+                    weight = np.random.uniform(self.p.plasticity.permanence_init_min * 0.01,
+                                               self.p.plasticity.permanence_init_max * 0.01,
+                                               size=(self.p.network.num_neurons, self.p.network.num_neurons))
+                else:
+                    weight = self.p.synapses.w_exc_exc
                 seed = j + i * self.p.network.num_symbols + self.p.experiment.seed_offset
                 if self.instance_id is not None:
                     seed += self.instance_id * self.p.network.num_symbols ** 2
@@ -1087,7 +1094,7 @@ class Plasticity(ABC):
                  permanence_threshold=None, w_mature=None, y=None, lambda_plus=None, weight_learning=None,
                  weight_learning_scale=None, lambda_minus=None, lambda_h=None, target_rate_h=None, tau_plus=None,
                  tau_h=None, delta_t_min=None, delta_t_max=None, dt=None, correlation_threshold=None,
-                 homeostasis_depression_rate=None, **kwargs):
+                 homeostasis_depression_rate=None, type=None, enable_structured_stdp=None, **kwargs):
         # custom objects
         self.projection = projection
         self.proj_post_soma_inh = proj_post_soma_inh
@@ -1095,7 +1102,9 @@ class Plasticity(ABC):
         self.post_somas = post_somas
 
         # editable/changing variables
-        if permanence_init_min == permanence_init_max:
+        if not enable_structured_stdp:
+            self.permanence_min = None
+        elif permanence_init_min == permanence_init_max:
             self.permanence_min = np.ones(shape=(len(self.projection),), dtype=float) * permanence_init_min
         else:
             self.permanence_min = np.asarray(np.random.randint(permanence_init_min, permanence_init_max,
@@ -1108,6 +1117,8 @@ class Plasticity(ABC):
         self.x = np.zeros((len(self.projection.pre)))
         self.z = np.zeros((len(self.projection.post)))
 
+        self.type = type
+        self.enable_structured_stdp = enable_structured_stdp
         self.debug = debug
         self.id = index
         self.projection_weight = None
@@ -1385,6 +1396,12 @@ class Plasticity(ABC):
             self.connections.append([c, j, i])
 
     def __call__(self, runtime: float, sim_start_time=0.0, q_plasticity=None):
+        if not self.enable_structured_stdp and self.permanence is None:
+            self.permanence_min = np.array(self.projection.get("weight", format="list"))[:, 2] * 100
+            self.permanence = copy.copy(self.permanence_min)
+            if self.permanences is not None:
+                self.enable_permanence_logging()
+
         if self.connections is None or len(self.connections) <= 0:
             self.init_connections()
 
@@ -1407,7 +1424,7 @@ class Plasticity(ABC):
             #     log.debug(f"Spikes post [dend]: {neuron_spikes_post_dendrite}")
             #     log.debug(f"Spikes post [soma]: {neuron_spikes_post_soma}")
 
-            permanence, x, mature = (self.learning_rules[self.shtm.p.plasticity.type.split("_")[0]]
+            permanence, x, mature = (self.learning_rules[self.type.split("_")[0]]
                                      (permanence=self.permanence[c],
                                       permanence_threshold=self.permanence_threshold[c],
                                       runtime=runtime, x=self.x[j], z=z,
@@ -1421,10 +1438,12 @@ class Plasticity(ABC):
             self.permanence[c] = permanence
             self.x[j] = x
 
-            if mature:
-                weight_offset = (
-                                            permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
-                weight[j, i] = self.w_mature + weight_offset
+            if mature or not self.enable_structured_stdp:
+                if not self.enable_structured_stdp:
+                    weight[j, i] = permanence * 0.01
+                else:
+                    weight_offset = (permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
+                    weight[j, i] = self.w_mature + weight_offset
                 if self.proj_post_soma_inh is not None:
                     weight_inh = self.proj_post_soma_inh.get("weight", format="array")
                     weight_inh[i, :] = 250
