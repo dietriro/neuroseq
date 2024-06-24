@@ -675,7 +675,7 @@ class SHTMTotal(SHTMBase, ABC):
         for i_plot, i_con in enumerate(plot_con_ids):
             permanences = np.array(self.con_plastic[i_con].permanences)
 
-            ind = np.where(np.sum(permanences == 0, axis=0) == 0)[0]
+            ind = np.where(np.sum(permanences == 0, axis=0) <= 1)[0]
             permanences = permanences[:, ind].tolist()
 
             permanences_plot = list()
