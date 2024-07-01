@@ -56,7 +56,7 @@ parameters:
     description: "inter-stimulus interval"
     original_value:
   encoding.dt_seq:
-    name: "$\\Delta T_{sew}$"
+    name: "$\\Delta T_{seq}$"
     description: "inter-sequence interval"
     original_value:
   encoding.t_exc_start:

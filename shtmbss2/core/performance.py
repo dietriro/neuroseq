@@ -253,6 +253,7 @@ class Performance(ABC):
         axs[0].legend(["Prediction error"], fontsize=plt_config.performance.fontsize.legend)
         axs[1].legend(["False-positives", "False-negatives"], fontsize=plt_config.performance.fontsize.legend)
         axs[2].legend(["Target", "Actual"], fontsize=plt_config.performance.fontsize.legend)
+        axs[3].legend(["Duplicate dAP's"], fontsize=plt_config.performance.fontsize.legend)
 
         return axs
 
