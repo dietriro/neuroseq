@@ -71,6 +71,11 @@ class NetworkState(NamedStorage):
     REPLAY = "replay"
 
 
+class EncodingType(NamedStorage):
+    DEFAULT = "default"
+    PROBABILISTIC = "probabilistic"
+
+
 class ReplayMode(NamedStorage):
     PARALLEL = "parallel"
     CONSECUTIVE = "consecutive"

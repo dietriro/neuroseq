@@ -217,7 +217,9 @@ class NetworkParameterGroups:
             self.dt_seq: float = None
             self.t_exc_start: float = None
             self.t_scaling_factor: float = None
+            self.encoding_type: str = None
             self.num_repetitions: int = None
+            self.probabilities: list = None
 
     class Plasticity(ParameterGroup):
         def __init__(self):

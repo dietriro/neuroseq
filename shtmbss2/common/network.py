@@ -103,6 +103,7 @@ class SHTMBase(ABC):
         self.network_state = NetworkState.PREDICTIVE
 
         self.run_state = False
+        self.target = None
 
         self.performance = PerformanceSingle(parameters=self.p)
 
@@ -195,13 +196,37 @@ class SHTMBase(ABC):
         spike_times = [list() for _ in range(self.p.network.num_symbols)]
         spike_time = None
 
+        if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
+            seq_distribution = np.round(np.array(self.p.encoding.probabilities) * self.p.encoding.num_repetitions).astype(int)
+            if np.sum(seq_distribution) > self.p.encoding.num_repetitions:
+                log.warn(f"Accumulated sum of repetitions per sequence exceeds total number of repetitions "
+                         f"({np.sum(seq_distribution)} > {self.p.encoding.num_repetitions}).")
+
         sequence_offset = self.p.encoding.t_exc_start
         for _ in range(self.p.encoding.num_repetitions):
-            for i_seq, sequence in enumerate(self.p.experiment.sequences):
+            # if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
+            #     i_seq = None
+            #     for i_seq in range(len(seq_distribution)):
+            #         if seq_distribution[i_seq] > 0:
+            #             seq_distribution[i_seq] -= 1
+            #             break
+            #     sequences = [self.p.experiment.sequences[i_seq]]
+            # else:
+            #     sequences = copy.copy(self.p.experiment.sequences)
+
+            if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
+                i_seq = np.random.choice(len(self.p.experiment.sequences), p=self.p.encoding.probabilities)
+                sequences = [self.p.experiment.sequences[i_seq]]
+            else:
+                sequences = copy.copy(self.p.experiment.sequences)
+
+            for i_seq, sequence in enumerate(sequences):
                 for i_element, element in enumerate(sequence):
                     if self.network_state == NetworkState.REPLAY:
                         if i_element == 0 and self.p.network.replay_mode == ReplayMode.PARALLEL:
                             spike_time = self.p.encoding.t_exc_start
+                        elif i_element == 0 and self.p.network.replay_mode == ReplayMode.CONSECUTIVE:
+                            spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
                         else:
                             break
                     else:
@@ -211,9 +236,9 @@ class SHTMBase(ABC):
 
         self.last_ext_spike_time = max([max(s, default=0) for s in spike_times], default=0)
 
-        log.debug(f'Spike times:')
+        log.info(f'Spike times:')
         for i_letter, letter_spikes in enumerate(spike_times):
-            log.debug(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times[i_letter]}')
+            log.info(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times[i_letter]}')
 
         self.neurons_ext.set(spike_times=spike_times)
 
@@ -338,15 +363,21 @@ class SHTMBase(ABC):
         pass
 
     def set_state(self, new_network_state, target=None):
+        self.target = target
         # define new neuron/network params based on network-state
         if new_network_state == NetworkState.PREDICTIVE:
             v_thresh = self.p.neurons.excitatory.v_thresh
             theta_dAP = self.p.neurons.dendrite.theta_dAP
             weight_factor = 1
         elif new_network_state == NetworkState.REPLAY:
-            v_thresh = 5
-            theta_dAP = 41.3
-            weight_factor = 7.5
+            # original
+            # v_thresh = 5
+            # theta_dAP = 41.3
+            # weight_factor = 7.5
+            # probabilistic
+            v_thresh = 7
+            theta_dAP = 59
+            weight_factor = 1
         else:
             return
 
@@ -958,7 +989,7 @@ class SHTMTotal(SHTMBase, ABC):
             if self.p.plasticity.learning_rate_decay is not None:
                 self.p.plasticity.learning_factor *= self.p.plasticity.learning_rate_decay
 
-            if self.network_state == NetworkState.REPLAY:
+            if self.network_state == NetworkState.REPLAY and self.target is not None:
                 self.update_adapt_thresholds()
 
         # print performance results

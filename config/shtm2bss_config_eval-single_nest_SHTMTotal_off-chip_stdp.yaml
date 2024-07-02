@@ -1,0 +1,118 @@
+experiment:
+  id: 'org_s2'
+  opt_id: ''
+#  sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
+  sequences: [[A, F, C, E], [A, F, B, D]]
+#  sequences: [['A', 'B', 'C', 'F'], ['D', 'B', 'C', 'E', 'F']]
+#  sequences: [[A, B, C, G, I, H, F],
+#              [D, B, C, E, J, F]]
+#  sequences: [A, C, D]
+#  sequences: [['A', 'F', 'C', 'E'], ['A', 'F', 'B', 'D', 'F']]
+#  sequences: [[A, D, B, E], [F, D, B, C]]
+#  sequences: [['E', 'N', 'D', 'I', 'J'], ['L', 'N', 'D', 'I', 'K'], ['G', 'J', 'M', 'C', 'N'], ['F', 'J', 'M', 'C', 'I'], ['B', 'C', 'K', 'H', 'I'], ['A', 'C', 'K', 'H', 'F']]
+#  sequences: [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']]
+  runtime: null
+  episodes: 100
+  run_add_calib: False
+  save_final: False
+  save_auto: False
+  save_auto_epoches: 5
+  generate_rand_seed_offset: False
+  seed_offset: null
+  log_weights: True
+  log_permanence: True
+plotting:
+  size: [10, 12]
+  file_type: 'pdf'
+  save_figure: True
+performance:
+  compute_performance: True
+  method: "all_symbols"
+  running_avgs: [ 0.25, 0.5, 0.75, 1.0 ]
+network:
+  replay_mode: "consecutive"
+  num_symbols: 6
+  num_neurons: 15
+  pattern_size: 3
+backend:
+  module_name: "nestml_mc01_module"
+  neuron_name: "iaf_psc_exp_nonlineardendritemc01_nestml"
+encoding:
+  dt_stm: 40
+  dt_seq: 100
+  t_exc_start: 10
+  t_scaling_factor: 1.
+  encoding_type: "probabilistic"
+  num_repetitions: 1
+  probabilities: [0.15, 0.85]
+plasticity:
+  type: 'original'
+#  type: 'bss2'
+#  type: 'bss2_int'
+  enable_structured_stdp: False
+  learning_factor: 1    # 2 for int
+  learning_rate_decay: null
+  weight_learning: False
+  weight_learning_scale: 0.0026
+  permanence_init_min: 0.
+  permanence_init_max: 1.
+  permanence_max: 35.
+  permanence_threshold: 10.
+  correlation_threshold: 0.0005 # 0.06 for tau_+ = 20
+  w_mature: 0.1298 # 0.1298
+  y: 1
+  lambda_plus: 0.0009   # bss=0.15 / bss-int=0.25 for int
+  lambda_minus: 0.000014    # bss=0.0045 / bss-int=0.0007 for int
+  lambda_h: 0.0008        # bss=0.03 / bss-int=0.03 for int
+  homeostasis_depression_rate: 1.0
+  target_rate_h: 10.35   # bss=0.16 / bss-int=0.14
+  tau_plus: 20      # bss=18 / bss-int=20
+  tau_h: 2200       # computed during runtime based on sequence length
+  delta_t_min: 4
+  delta_t_max: 50
+  dt: 0.1
+neurons:
+  inhibitory:
+    c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000
+    v_rest: 0
+    v_reset: 0
+    v_thresh: 15
+    tau_m: 5
+    tau_syn_I: 1.0
+    tau_syn_E: 0.5
+    tau_refrac: 2
+  excitatory:
+    c_m: 250
+    v_rest: 0
+    v_reset: 0
+    v_thresh: 20
+    tau_m: 10
+    tau_syn_ext: 2
+    tau_syn_den: 5
+    tau_syn_inh: 1
+    tau_refrac: 10
+  dendrite:
+    I_p: 200
+    tau_dAP: 60
+    theta_dAP: 59
+synapses:
+  dyn_inh_weights: False
+  dyn_weight_calculation: True
+  w_exc_inh_dyn: null
+  w_ext_exc: 4.1122
+  w_exc_exc: 0.0e-3
+  w_exc_inh: 3.8747
+  w_inh_exc: 12.9155
+  w_exc_inh_global: 10
+  p_exc_exc: 0.2
+  receptor_ext_exc: "I_1"
+  receptor_exc_exc: "I_2"
+  receptor_exc_inh: "excitatory"
+  receptor_inh_exc: "I_3"
+  delay_ext_exc: 0.1
+  delay_exc_exc: 2
+  delay_exc_inh: 0.1
+  delay_inh_exc: 0.1
+  j_ext_exc_psp: 1.1 * parameters.neurons.excitatory.v_thresh
+  j_exc_inh_psp: 1.2 * parameters.neurons.inhibitory.v_thresh / parameters.network.pattern_size
+  j_inh_exc_psp: -2 * parameters.neurons.excitatory.v_thresh
