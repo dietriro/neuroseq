@@ -64,18 +64,11 @@ class Performance(ABC):
         for i_seq, seq in enumerate(self.p.experiment.sequences):
             seq_performance = {metric: list() for metric in PerformanceMetrics.get_all()}
 
-            t_min += i_seq * self.p.encoding.dt_seq + i_seq * self.p.encoding.dt_stm
-
-
             for i_element, element in enumerate(seq[1:]):
-                if i_element > 0:
-                    t_min += self.p.encoding.dt_stm
-
                 if method == PerformanceType.LAST_SYMBOL and i_element < len(seq) - 2:
                     continue
 
                 # define min/max for time window of spikes
-
                 t_max = t_min + self.p.encoding.dt_stm
 
                 log.debug(f"t_min = {t_min},  t_max = {t_max}")
@@ -125,12 +118,16 @@ class Performance(ABC):
                 seq_performance[PerformanceMetrics.ACTIVE_SOMAS].append(num_som_spikes[SYMBOLS[element]])
                 # seq_performance[PerformanceMetrics.ACTIVE_DENDRITES].append(num_dAPs[SYMBOLS[element]])
 
+                t_min += self.p.encoding.dt_stm
+
             # calculate dAP error
 
             for metric in PerformanceMetrics.get_all():
                 if metric == PerformanceMetrics.DD:
                     continue
                 self.add_data_point(np.mean(seq_performance[metric]), metric, sequence_id=i_seq)
+
+            t_min += self.p.encoding.dt_seq
 
         # calculate dendritic duplicate data for all symbols
         num_dAPs_total = np.zeros((self.p.network.num_symbols, self.p.network.num_neurons))
