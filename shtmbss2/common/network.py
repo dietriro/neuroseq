@@ -156,6 +156,16 @@ class SHTMBase(ABC):
                                                                   self.p.neurons.excitatory.tau_syn_inh,
                                                                   self.p.neurons.excitatory.c_m)) / 1000
 
+        # check if number of symbols is high enough
+        max_symbol = id_to_symbol(self.p.network.num_symbols)
+        for seq_i in self.p.experiment.sequences:
+            max_symbol = max(seq_i + [max_symbol])
+        if max_symbol > id_to_symbol(self.p.network.num_symbols):
+            log.warning(f"The number of symbols used in sequences exceeds the number of symbols specified "
+                        f"({SYMBOLS[max_symbol]} > {self.p.network.num_symbols}).\n"
+                        "Setting the number of symbols to the maximum value used.")
+            self.p.network.num_symbols = SYMBOLS[max_symbol] + 1
+
     def init_network(self):
         self.init_neurons()
         self.init_connections()
