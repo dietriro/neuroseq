@@ -205,6 +205,7 @@ class NetworkParameterGroups:
             self.num_symbols: int = None
             self.num_neurons: int = None
             self.pattern_size: int = None
+            self.ext_indiv: bool = None
 
     class Backend(ParameterGroup):
         def __init__(self):

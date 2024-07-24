@@ -120,6 +120,7 @@ class SHTMBase(network.SHTMBase, ABC):
         if init_recorder:
             self.neurons_ext.record(["spikes"])
 
+
     def reset(self, store_to_cache=False):
         # ToDo: Have a look if we can keep pynn from running 'store_to_cache' - this takes about a second for 5 epochs
         pynn.reset(store_to_cache=store_to_cache)

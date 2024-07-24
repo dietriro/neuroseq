@@ -177,7 +177,11 @@ class SHTMBase(ABC):
         self.neurons_inh = self.init_neurons_inh()
         self.neurons_inh_global = self.init_neurons_inh()
 
-        self.neurons_ext = Population(self.p.network.num_symbols, SpikeSourceArray())
+        if self.p.network.ext_indiv:
+            self.neurons_ext = [Population(self.p.network.num_neurons, SpikeSourceArray())
+                                for _ in range(self.p.network.num_symbols)]
+        else:
+            self.neurons_ext = Population(self.p.network.num_symbols, SpikeSourceArray())
 
     @abstractmethod
     def init_all_neurons_exc(self, num_neurons=None):
@@ -203,7 +207,12 @@ class SHTMBase(ABC):
         pass
 
     def init_external_input(self, init_recorder=False, init_performance=False):
-        spike_times = [list() for _ in range(self.p.network.num_symbols)]
+        if self.p.network.ext_indiv:
+            spike_times = [[list() for _ in range(self.p.network.num_neurons)]
+                           for _ in range(self.p.network.num_symbols)]
+        else:
+            spike_times = [list() for _ in range(self.p.network.num_symbols)]
+        spike_times_sym = [list() for _ in range(self.p.network.num_symbols)]
         spike_time = None
 
         if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
@@ -212,18 +221,9 @@ class SHTMBase(ABC):
                 log.warn(f"Accumulated sum of repetitions per sequence exceeds total number of repetitions "
                          f"({np.sum(seq_distribution)} > {self.p.encoding.num_repetitions}).")
 
+        starting_symbols = {sym: 0 for sym in SYMBOLS.keys()}
         sequence_offset = self.p.encoding.t_exc_start
         for _ in range(self.p.encoding.num_repetitions):
-            # if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
-            #     i_seq = None
-            #     for i_seq in range(len(seq_distribution)):
-            #         if seq_distribution[i_seq] > 0:
-            #             seq_distribution[i_seq] -= 1
-            #             break
-            #     sequences = [self.p.experiment.sequences[i_seq]]
-            # else:
-            #     sequences = copy.copy(self.p.experiment.sequences)
-
             if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
                 i_seq = np.random.choice(len(self.p.experiment.sequences), p=self.p.encoding.probabilities)
                 sequences = [self.p.experiment.sequences[i_seq]]
@@ -241,18 +241,31 @@ class SHTMBase(ABC):
                             break
                     else:
                         spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
-                    spike_times[SYMBOLS[element]].append(spike_time)
+
+                    if self.p.network.ext_indiv:
+                        if i_element == 0:
+                            neuron_range = range(starting_symbols[element]*self.p.network.pattern_size,
+                                                 (starting_symbols[element]+1)*self.p.network.pattern_size)
+                            starting_symbols[element] += 1
+                        else:
+                            neuron_range = range(self.p.network.num_neurons)
+                        for i_neuron in neuron_range:
+                            spike_times[SYMBOLS[element]][i_neuron].append(spike_time)
+                    else:
+                        spike_times[SYMBOLS[element]].append(spike_time)
+                    spike_times_sym[SYMBOLS[element]].append(spike_time)
                 sequence_offset = spike_time + self.p.encoding.dt_seq
 
-        self.last_ext_spike_time = max([max(s, default=0) for s in spike_times], default=0)
+        self.last_ext_spike_time = max([max(s, default=0) for s in spike_times_sym], default=0)
 
-        log.info(f'Spike times:')
-        for i_letter, letter_spikes in enumerate(spike_times):
-            log.info(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times[i_letter]}')
+        log.debug(f'Spike times:')
+        for i_letter, letter_spikes in enumerate(spike_times_sym):
+            log.debug(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times_sym[i_letter]}')
 
-        self.neurons_ext.set(spike_times=spike_times)
+        for i_sym in range(self.p.network.num_symbols):
+            self.neurons_ext[i_sym].set(spike_times=spike_times[i_sym])
 
-        self.spike_times_ext = spike_times
+        self.spike_times_ext = spike_times_sym
 
         if init_performance:
             log.info(f'Initialized external input for sequence(s) {self.p.experiment.sequences}')
@@ -262,10 +275,17 @@ class SHTMBase(ABC):
     def init_connections(self, exc_to_exc=None, exc_to_inh=None):
         self.ext_to_exc = []
         for i in range(self.p.network.num_symbols):
+            if self.p.network.ext_indiv:
+                neurons_ext_i = self.neurons_ext[i]
+                connector = pynn.OneToOneConnector()
+            else:
+                neurons_ext_i = PopulationView(self.neurons_ext, [i])
+                connector = pynn.AllToAllConnector()
+
             self.ext_to_exc.append(Projection(
-                PopulationView(self.neurons_ext, [i]),
+                neurons_ext_i,
                 self.get_neurons(NeuronType.Soma, symbol_id=i),
-                AllToAllConnector(),
+                connector,
                 synapse_type=StaticSynapse(weight=self.p.synapses.w_ext_exc, delay=self.p.synapses.delay_ext_exc),
                 receptor_type=self.p.synapses.receptor_ext_exc))
 

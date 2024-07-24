@@ -28,6 +28,7 @@ network:
   replay_mode: "parallel"
   num_neurons: 15
   pattern_size: 3
+  ext_indiv: True
 backend:
   module_name: "nestml_mc01_module"
   neuron_name: "iaf_psc_exp_nonlineardendritemc01_nestml"
