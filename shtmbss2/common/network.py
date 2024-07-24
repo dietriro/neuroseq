@@ -5,6 +5,7 @@ import pickle
 import yaml
 import sys
 import multiprocessing as mp
+import itertools as it
 
 from types import ModuleType, FunctionType
 from gc import get_referents
@@ -439,27 +440,48 @@ class SHTMBase(ABC):
 
         self.network_state = new_network_state
 
-    def update_adapt_thresholds(self):
-        con_id = 0
-        for i_sym in range(self.p.network.num_symbols):
+    def update_adapt_thresholds(self, num_active_neuron_thresh=None):
+        if num_active_neuron_thresh is None:
+            num_active_neuron_thresh = self.p.network.pattern_size * 1.5
+
+        con_id = self.p.network.num_symbols - 1
+        for i_sym in range(1, self.p.network.num_symbols):
+            num_active_neurons = 0
+            trace_offset = 1.0
             spikes_i = self.neuron_events[NeuronType.Soma][i_sym]
+            finished = False
             for k_sym in range(self.p.network.num_symbols):
                 if i_sym == k_sym:
                     continue
                 weights = self.exc_to_exc[con_id].get("weight", format="array")
                 spikes_k = self.neuron_events[NeuronType.Soma][k_sym]
-                finished = False
+                num_active_neurons = 0
                 for i_neuron, spikes_i_i in enumerate(spikes_i):
+                    num_active_neurons += int(len(spikes_i_i) > 0)
+                    if finished:
+                        continue
                     for k_neuron, spikes_k_k in enumerate(spikes_k):
-                        if 4 < spikes_k_k - spikes_i_i < 60:
-                            if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
-                                V_th = self.neurons_exc[i_sym].get("V_th")
-                                self.neurons_exc[i_sym].set(V_th=V_th * 0.9)
+                        if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
+                            delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
+                            if np.any((delta_t < 60) & (delta_t > 4)):
+                                trace_offset = 0.8
                                 finished = True
                                 break
-                    if finished:
-                        break
                 con_id += 1
+
+            target_diff = num_active_neuron_thresh - num_active_neurons
+            if target_diff < 0 or target_diff == num_active_neuron_thresh:
+                target_offset = 0
+            else:
+                target_offset = 0.2
+            log.info(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
+
+            V_th = self.neurons_exc[i_sym].get("V_th")
+            V_th_new = V_th * trace_offset - target_offset * V_th
+            self.neurons_exc[i_sym].set(V_th=V_th_new)
+            if V_th != V_th_new:
+                log.info(f"[{id_to_symbol(i_sym)}]  V_th = {V_th},  V_th' = {V_th_new}")
+
 
     def run_sim(self, runtime):
         pynn.run(runtime)
@@ -962,7 +984,7 @@ class SHTMTotal(SHTMBase, ABC):
         return self.con_plastic[con_id].projection.get("weight", format="array")
 
     def run(self, runtime=None, steps=None, plasticity_enabled=True, store_to_cache=False, dyn_exc_inh=False,
-            run_type=RunType.SINGLE):
+            run_type=RunType.SINGLE, num_active_neuron_thresh=None):
         if runtime is None:
             runtime = self.p.experiment.runtime
         if steps is None:
@@ -1019,8 +1041,8 @@ class SHTMTotal(SHTMBase, ABC):
             if self.p.plasticity.learning_rate_decay is not None:
                 self.p.plasticity.learning_factor *= self.p.plasticity.learning_rate_decay
 
-            if self.network_state == NetworkState.REPLAY and self.target is not None:
-                self.update_adapt_thresholds()
+            if self.network_state == NetworkState.REPLAY:
+                self.update_adapt_thresholds(num_active_neuron_thresh=num_active_neuron_thresh)
 
         # print performance results
         self.print_performance_results()

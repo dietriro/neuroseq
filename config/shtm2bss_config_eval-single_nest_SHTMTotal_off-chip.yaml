@@ -2,6 +2,7 @@ experiment:
   id: 'org_s2'
   opt_id: ''
   sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
+  sequences: [[A, B, C, D, E, F], [A, B, C, D, E, G], [A, B, C, D, H, I]]
 #  sequences: [[A, D, B, E], [F, D, B, C]]
 #  sequences: [['E', 'N', 'D', 'I', 'J'], ['L', 'N', 'D', 'I', 'K'], ['G', 'J', 'M', 'C', 'N'], ['F', 'J', 'M', 'C', 'I'], ['B', 'C', 'K', 'H', 'I'], ['A', 'C', 'K', 'H', 'F']]
 #  sequences: [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']]
@@ -24,7 +25,7 @@ performance:
   method: "all_symbols"
   running_avgs: [ 0.25, 0.5, 0.75, 1.0 ]
 network:
-  num_symbols: 4
+  num_symbols: 7
   replay_mode: "parallel"
   num_neurons: 15
   pattern_size: 3
@@ -42,21 +43,21 @@ plasticity:
   type: 'original'
 #  type: 'bss2'
 #  type: 'bss2_int'
-  enable_structured_stdp: False
+  enable_structured_stdp: True
   learning_factor: 1    # 2 for int
   learning_rate_decay: null
   weight_learning: False
   weight_learning_scale: 0.0026
-  permanence_init_min: 0.
-  permanence_init_max: 2.
-  permanence_max: 12.98
+  permanence_init_min: 0
+  permanence_init_max: 8
+  permanence_max: 20.
   permanence_threshold: 10.
   correlation_threshold: 0.0005 # 0.06 for tau_+ = 20
   w_mature: 0.1298 # 0.1298
   y: 1
-  lambda_plus: 0.35   # bss=0.15 / bss-int=0.25 for int
-  lambda_minus: 0.006    # bss=0.0045 / bss-int=0.0007 for int
-  lambda_h: 0.045        # bss=0.03 / bss-int=0.03 for int
+  lambda_plus: 0.08   # bss=0.15 / bss-int=0.25 for int
+  lambda_minus: 0.0015    # bss=0.0045 / bss-int=0.0007 for int
+  lambda_h: 0.014        # bss=0.03 / bss-int=0.03 for int
   homeostasis_depression_rate: 1.0
   target_rate_h: 1.0   # bss=0.16 / bss-int=0.14
   tau_plus: 20      # bss=18 / bss-int=20
