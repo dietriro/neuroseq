@@ -237,6 +237,7 @@ class NetworkParameterGroups:
             self.permanence_max: float = None
             self.permanence_threshold: float = None
             self.correlation_threshold: int = None
+            self.num_coactive_neurons: int = None
             self.w_mature: float = None
             self.y: float = None
             self.lambda_plus: float = None
@@ -249,6 +250,7 @@ class NetworkParameterGroups:
             self.delta_t_min: float = None
             self.delta_t_max: float = None
             self.dt: float = None
+        _to_evaluate: list = ["w_mature"]
 
     class Neurons(ParameterGroup):
         def __init__(self):

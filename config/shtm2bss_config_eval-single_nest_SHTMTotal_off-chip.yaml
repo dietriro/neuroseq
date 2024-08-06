@@ -54,6 +54,8 @@ plasticity:
   permanence_threshold: 10.
   correlation_threshold: 0.0005 # 0.06 for tau_+ = 20
   w_mature: 0.1298 # 0.1298
+  num_coactive_neurons: 3
+  w_mature: 1.1 * parameters.neurons.dendrite.theta_dAP * 0.001 / parameters.plasticity.num_coactive_neurons
   y: 1
   lambda_plus: 0.08   # bss=0.15 / bss-int=0.25 for int
   lambda_minus: 0.0015    # bss=0.0045 / bss-int=0.0007 for int
