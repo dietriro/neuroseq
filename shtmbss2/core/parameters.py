@@ -174,6 +174,7 @@ class NetworkParameterGroups:
             self.type: str = None
             self.id: str = None
             self.opt_id: str = None
+            self.map_name: str = None
             self.sequences: list = None
             self.seq_repetitions: int = None
             self.runtime: float = None

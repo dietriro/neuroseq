@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from shtmbss2.common.config import *
 from shtmbss2.core.logging import log
 from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
-from shtmbss2.core.helpers import moving_average
+from shtmbss2.core.helpers import moving_average, id_to_symbol
 from shtmbss2.common.config import NeuronType
 from shtmbss2.core.data import get_experiment_folder
 from shtmbss2.common.plot import plot_panel_label
@@ -61,6 +61,9 @@ class Performance(ABC):
         t_min_org = t_min
         t_max_next = 0
 
+        edge_activity = dict()
+        node_activity = dict()
+
         for i_seq, seq in enumerate(self.p.experiment.sequences):
             seq_performance = {metric: list() for metric in PerformanceMetrics.get_all()}
 
@@ -86,15 +89,20 @@ class Performance(ABC):
                 t_max_next = t_max + self.p.encoding.dt_stm
 
                 for i_symbol in range(self.p.network.num_symbols):
-                    # get dAP's per subpopulation
+                    # get dAP's for subpopulation during current time window
                     num_dAPs[i_symbol] = np.sum([t_min < item < t_max for sublist in
                                                  neuron_events[NeuronType.Dendrite][i_symbol] for item in
                                                  sublist])
 
-                    # get somatic spikes per subpopulation
+                    # get somatic spikes for subpopulation during next time window
                     num_som_spikes[i_symbol] = np.sum([t_min_next < item < t_max_next for sublist in
                                                        neuron_events[NeuronType.Soma][i_symbol] for item in
                                                        sublist])
+
+                    if num_som_spikes[i_symbol] >= (ratio_fn_activation * self.p.network.pattern_size):
+                        node_activity[id_to_symbol(i_symbol)] = SomaState.ACTIVE
+                    elif id_to_symbol(i_symbol) not in node_activity.keys():
+                        node_activity[id_to_symbol(i_symbol)] = SomaState.INACTIVE
 
                     if (i_symbol != SYMBOLS[element] and
                             num_dAPs[i_symbol] >= (ratio_fp_activation * self.p.network.pattern_size)):
@@ -103,6 +111,11 @@ class Performance(ABC):
                           num_dAPs[i_symbol] >= (ratio_fn_activation * self.p.network.pattern_size)):
                         counter_correct += 1
                         output[i_symbol] = 1
+                        edge_activity[(seq[i_element], element)] = DendriteState.PREDICTIVE
+                    elif (i_symbol == SYMBOLS[element] and
+                          0 < num_dAPs[i_symbol] < (ratio_fn_activation * self.p.network.pattern_size)):
+                        edge_activity[(seq[i_element], element)] = DendriteState.WEAK
+
 
                 # num_dAPs_total += num_dAPs
 
@@ -141,6 +154,8 @@ class Performance(ABC):
         # add dendritic duplicate data
         for i_seq in range(len(self.p.experiment.sequences)):
             self.add_data_point(np.mean(num_dAPs_sum), PerformanceMetrics.DD, sequence_id=i_seq)
+
+        return node_activity, edge_activity
 
 
     def plot(self, plt_config, statistic, sequences="mean", fig_title="", plot_dd=False):

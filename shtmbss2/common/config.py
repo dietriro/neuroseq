@@ -81,6 +81,29 @@ class ReplayMode(NamedStorage):
     CONSECUTIVE = "consecutive"
 
 
+class DendriteState(NamedStorage):
+    INACTIVE = "inactive"
+    WEAK = "weak"
+    PREDICTIVE = "predictive"
+    DUPLICATE = "duplicate"
+
+
+class SomaState(NamedStorage):
+    INACTIVE = "inactive"
+    ACTIVE = "active"
+
+
+class Colors(NamedStorage):
+    BLACK = "black"
+    GREY = "grey"
+    BLUE = "blue"
+    LIGHT_BLUE = "lightblue"
+    DARK_BLUE = "darkblue"
+    PURPLE = "purple"
+    RED = "red"
+    GREEN = "green"
+
+
 class FileType(NamedStorage):
     DATA = 'data'
     FIGURE = 'figure'
@@ -172,6 +195,7 @@ class Log(NamedStorage):
 
 PATH_CONFIG = join(PY_PKG_PATH, 'config')
 PATH_MODELS = join(PY_PKG_PATH, 'models')
+PATH_MAPS = join(PY_PKG_PATH, 'data', 'maps')
 
 EXPERIMENT_FOLDERS = {
     Backends.NEST: join(PY_PKG_PATH, 'data/evaluation/nest'),

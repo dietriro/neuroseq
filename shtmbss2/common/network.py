@@ -25,6 +25,7 @@ from shtmbss2.core.helpers import (Process, symbol_from_label, id_to_symbol, cal
 from shtmbss2.common.config import NeuronType, RecTypes
 from shtmbss2.common.plot import plot_dendritic_events
 from shtmbss2.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
+from shtmbss2.core.map import Map
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
     import pynn_brainscales.brainscales2 as pynn
@@ -73,6 +74,9 @@ class SHTMBase(ABC):
         else:
             self.p: NetworkParameters = deepcopy(p)
         self.p.experiment.type = experiment_type
+
+        # Load map data and create new map
+        self.map = Map(self.p.experiment.map_name, self.p.experiment.sequences, save_history=True)
 
         # Declare neuron populations
         self.neurons_exc = None
@@ -440,6 +444,8 @@ class SHTMBase(ABC):
 
         self.network_state = new_network_state
 
+        self.map.reset_graph_history()
+
     def update_adapt_thresholds(self, num_active_neuron_thresh=None):
         if num_active_neuron_thresh is None:
             num_active_neuron_thresh = self.p.network.pattern_size * 1.5
@@ -474,14 +480,13 @@ class SHTMBase(ABC):
                 target_offset = 0
             else:
                 target_offset = 0.2
-            log.info(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
+            log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
 
             V_th = self.neurons_exc[i_sym].get("V_th")
             V_th_new = V_th * trace_offset - target_offset * V_th
             self.neurons_exc[i_sym].set(V_th=V_th_new)
             if V_th != V_th_new:
-                log.info(f"[{id_to_symbol(i_sym)}]  V_th = {V_th},  V_th' = {V_th_new}")
-
+                log.debug(f"[{id_to_symbol(i_sym)}]  V_th = {V_th},  V_th' = {V_th_new}")
 
     def run_sim(self, runtime):
         pynn.run(runtime)
@@ -686,6 +691,8 @@ class SHTMBase(ABC):
         ax.set_xlabel("Time [ms]", labelpad=14, fontsize=26)
         ax.set_ylabel("Membrane Voltage [a.u.]", labelpad=14, fontsize=26)
 
+        ax.set_xlim(0, runtime)
+
         if show_legend:
             plt.legend()
 
@@ -702,6 +709,77 @@ class SHTMBase(ABC):
 
     def plot_performance(self, statistic=StatisticalMetrics.MEAN, sequences="statistic", plot_dd=False):
         self.performance.plot(self.p_plot, statistic=statistic, sequences=sequences, plot_dd=plot_dd)
+
+    def times_to_list(self, times, i_sym, ratio_fn_activation=0.5):
+        # List element: tuple(avg_spike_time, i_sym, num_spikes)
+        times_list = list()
+
+        i_sym_times_sum = np.ediff1d(times)
+        group_ids = np.where(i_sym_times_sum > 4)[0]
+        group_ids += 1
+        last_group_start = 0
+        for group_id in group_ids:
+            if len(times[last_group_start:group_id]) >= ratio_fn_activation * self.p.network.pattern_size:
+                times_list.append((np.mean(times[last_group_start:group_id]), i_sym, group_id-last_group_start))
+            last_group_start = group_id
+        if len(times) > 0:
+            if len(times[last_group_start:]) >= ratio_fn_activation * self.p.network.pattern_size:
+                times_list.append((np.mean(times[last_group_start:]), i_sym, len(times)-last_group_start))
+        else:
+            times_list.append((0, i_sym, 0))
+
+        return times_list
+
+    def get_activity(self, ratio_fn_activation=0.5):
+        edge_activity = dict()
+        node_activity = dict()
+
+        soma_times = list()
+        dendrite_times = list()
+        for i_sym in range(self.p.network.num_symbols):
+            i_sym_times_soma = list()
+            i_sym_times_dendrite = list()
+            for i_neuron in range(self.p.network.num_neurons):
+                i_sym_times_soma += list(self.neuron_events[NeuronType.Soma][i_sym][i_neuron])
+                i_sym_times_dendrite += list(self.neuron_events[NeuronType.Dendrite][i_sym][i_neuron])
+
+            soma_times += self.times_to_list(np.sort(np.array(i_sym_times_soma)), i_sym,
+                                             ratio_fn_activation=ratio_fn_activation)
+            dendrite_times += self.times_to_list(np.sort(np.array(i_sym_times_dendrite)), i_sym,
+                                                 ratio_fn_activation=ratio_fn_activation)
+
+        soma_times = [(a, b, c) for a, b, c in soma_times if a > 0]
+        dendrite_times = [(a, b, c) for a, b, c in dendrite_times if a > 0]
+        soma_times.sort()
+        dendrite_times.sort()
+        num_weights_thresh = 1
+
+        for i_soma, soma_i in enumerate(soma_times[:-1]):
+            node_activity[id_to_symbol(soma_i[1])] = SomaState.ACTIVE
+            for i_dend, dend_i in enumerate(dendrite_times):
+                for k_soma, soma_k in enumerate(soma_times[i_soma+1:]):
+                    if soma_k[1] != dend_i[1]:
+                        continue
+                    if not 4 < soma_k[0] - dend_i[0] < self.p.neurons.dendrite.tau_dAP:
+                        break
+                    # get weights for connection from soma_i to soma_i+1
+                    i_con = soma_i[1] * (self.p.network.num_symbols - 1) + soma_k[1] - (1 if soma_k[1] > soma_i[1] else 0)
+                    weights = self.exc_to_exc[i_con].get("weight", format="array")
+                    num_active_connections = np.sum(
+                        np.ceil(np.nansum(weights, axis=0) / self.p.plasticity.w_mature) > num_weights_thresh)
+
+                    if soma_i[0] < dend_i[0] < soma_k[0] and \
+                            num_active_connections >= ratio_fn_activation * self.p.network.pattern_size:
+                        sym_pre = id_to_symbol(soma_i[1])
+                        sym_post = id_to_symbol(soma_k[1])
+                        if dend_i[2] >= self.p.network.pattern_size:
+                            edge_activity[(sym_pre, sym_post)] = DendriteState.PREDICTIVE
+                        elif dend_i[2] > 0:
+                            edge_activity[(sym_pre, sym_post)] = DendriteState.WEAK
+
+            node_activity[id_to_symbol(soma_times[-1][1])] = SomaState.ACTIVE
+
+        return node_activity, edge_activity
 
     def getsize(self):
         """sum size of object & members."""
@@ -1022,7 +1100,13 @@ class SHTMTotal(SHTMBase, ABC):
             self._retrieve_neuron_data()
 
             if self.p.performance.compute_performance:
-                self.performance.compute(neuron_events=self.neuron_events, method=self.p.performance.method)
+                self.performance.compute(neuron_events=self.neuron_events,
+                                         method=self.p.performance.method)
+
+                # update graph representation
+                new_node_activity, new_edge_activity = self.get_activity()
+
+                self.map.update_graph(new_node_activity, new_edge_activity)
 
             if plasticity_enabled:
                 if run_type == RunType.MULTI:
