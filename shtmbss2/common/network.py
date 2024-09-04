@@ -268,7 +268,10 @@ class SHTMBase(ABC):
             log.debug(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times_sym[i_letter]}')
 
         for i_sym in range(self.p.network.num_symbols):
-            self.neurons_ext[i_sym].set(spike_times=spike_times[i_sym])
+            if self.p.network.ext_indiv:
+                self.neurons_ext[i_sym].set(spike_times=spike_times[i_sym])
+            else:
+                self.neurons_ext[i_sym:i_sym+1].set(spike_times=spike_times[i_sym])
 
         self.spike_times_ext = spike_times_sym
 
