@@ -1,7 +1,11 @@
 import tkinter as tk
+import numpy as np
+
 from tkinter import ttk, messagebox, filedialog
 from ttkthemes import ThemedStyle
 import csv
+
+from shtmbss2.common.config import PATH_MAPS
 
 
 class GridCreator:
@@ -68,7 +72,10 @@ class GridCreator:
         self.save_button = ttk.Button(self.root, text="Save as CSV", command=self.save_as_csv)
         self.save_button.pack()
 
-        self.grid_values = []  # 2D list to hold grid cell values
+        self.assign_button = ttk.Button(self.root, text="Assign Unique Values", command=self.assign_unique_values)
+        self.assign_button.pack()
+
+        self.grid_values = None  # 2D list to hold grid cell values
         self.labels = []  # 2D list to hold label widgets
         self.is_mouse_pressed = False
         self.prev_row = None
@@ -89,7 +96,7 @@ class GridCreator:
                 widget.destroy()
 
             # Initialize grid_values and labels lists
-            self.grid_values = [[0 for _ in range(y)] for _ in range(x)]
+            self.grid_values = np.zeros((x, y), dtype=int)
             self.labels = [[None for _ in range(y)] for _ in range(x)]
 
             self.root.bind("<B1-Motion>", lambda event: self.on_move(event))
@@ -98,8 +105,8 @@ class GridCreator:
             # Create the grid
             for i in range(x):
                 for j in range(y):
-                    cell_value = self.grid_values[i][j]
-                    cell_color = "white" if cell_value == 1 else "grey"
+                    cell_value = self.grid_values[i, j]
+                    cell_color = "white" if cell_value >= 1 else "grey"
 
                     label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=10, height=6, bg=cell_color)
                     label.grid(row=i, column=j, padx=1, pady=1)
@@ -125,6 +132,8 @@ class GridCreator:
     def on_move(self, event):
         if self.is_mouse_pressed:  # Check if left mouse button is pressed (bitwise check)
             widget = event.widget.winfo_containing(event.x_root, event.y_root)
+            if widget is None:
+                return
             if self.prev_label != widget:
                 self.prev_label = widget
                 widget.event_generate("<<B1-Enter>>")
@@ -135,26 +144,27 @@ class GridCreator:
     def update_cell(self, row, col):
         selected_type = self.cell_type_var.get()
         if selected_type == "traversable":
-            self.grid_values[row][col] = 1
+            self.grid_values[row, col] = 1
         elif selected_type == "occupied":
-            self.grid_values[row][col] = 0
+            self.grid_values[row, col] = 0
 
-        cell_value = self.grid_values[row][col]
-        cell_color = "white" if cell_value == 1 else "grey"
-        self.labels[row][col].config(bg=cell_color)  # Update background color of the label
+        cell_value = self.grid_values[row, col]
+        cell_color = "white" if cell_value >= 1 else "grey"
+        self.labels[row][col].config(bg=cell_color, text="")  # Update background color of the label
 
     def save_as_csv(self):
         try:
-            if not self.grid_values:
+            if not self.grid_values.any():
                 messagebox.showwarning("Warning", "No grid data to save.")
                 return
 
-            filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+            filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
+                                                    initialdir=PATH_MAPS)
             if filename:
                 with open(filename, "w", newline="") as csvfile:
                     csvwriter = csv.writer(csvfile)
                     for row in self.grid_values:
-                        csvwriter.writerow(row)
+                        csvwriter.writerow(row.tolist())
 
                 messagebox.showinfo("Save Successful", f"Grid saved as {filename}")
 
@@ -168,12 +178,29 @@ class GridCreator:
         elif delta < 0:
             self.canvas.yview_scroll(1, "units")
 
-        # # Horizontal scrolling
-        # if delta > 0:
-        #     self.canvas.xview_scroll(-1, "units")
-        # elif delta < 0:
-        #     self.canvas.xview_scroll(1, "units")
+    def assign_unique_values(self):
+        unique_value = np.max(self.grid_values) + 1
+        assigned_values = {}  # Dictionary to store already assigned values
 
+        for i in range(len(self.grid_values)):
+            for j in range(len(self.grid_values[0])):
+                if self.grid_values[i, j] == 1:
+                    if (i, j) not in assigned_values:
+                        self.grid_values[i, j] = unique_value
+                        assigned_values[(i, j)] = unique_value
+                        unique_value += 1
+
+        # Update labels based on updated grid_values
+        for i in range(len(self.grid_values)):
+            for j in range(len(self.grid_values[0])):
+                if self.grid_values[i, j] == 0:
+                    continue
+                cell_value = self.grid_values[i, j]
+                cell_color = "white" if cell_value >= 1 else "grey"
+                self.labels[i][j].config(bg=cell_color, text=str(cell_value))
+
+    def run(self):
+        self.root.mainloop()
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -182,4 +209,4 @@ if __name__ == "__main__":
     style.set_theme('equilux')
 
     app = GridCreator(root)
-    root.mainloop()
+    app.run()
