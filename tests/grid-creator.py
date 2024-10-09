@@ -100,7 +100,9 @@ class GridCreator:
             self.labels = [[None for _ in range(y)] for _ in range(x)]
 
             self.root.bind("<B1-Motion>", lambda event: self.on_move(event))
+            self.root.bind("<B3-Motion>", lambda event: self.on_move(event))
             self.root.bind("<ButtonRelease-1>", lambda event: self.on_release(event))
+            self.root.bind("<ButtonRelease-3>", lambda event: self.on_release(event))
 
             # Create the grid
             for i in range(x):
@@ -111,7 +113,9 @@ class GridCreator:
                     label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=10, height=6, bg=cell_color)
                     label.grid(row=i, column=j, padx=1, pady=1)
                     label.bind("<Button-1>", lambda event, row=i, col=j: self.on_cell_click(event, row, col))
+                    label.bind("<Button-3>", lambda event, row=i, col=j: self.on_cell_click(event, row, col, right=True))
                     label.bind("<<B1-Enter>>", lambda event, row=i, col=j: self.on_cell_enter(event, row, col))
+                    label.bind("<<B3-Enter>>", lambda event, row=i, col=j: self.on_cell_enter(event, row, col, right=True))
 
                     self.labels[i][j] = label  # Store label in 2D list
 
@@ -125,8 +129,9 @@ class GridCreator:
     def on_release(self, event):
         self.is_mouse_pressed = False
 
-    def on_cell_click(self, event, row, col):
+    def on_cell_click(self, event, row, col, right=False):
         self.is_mouse_pressed = True
+        self.right = right
         self.update_cell(row, col)
 
     def on_move(self, event):
@@ -138,18 +143,29 @@ class GridCreator:
                 self.prev_label = widget
                 widget.event_generate("<<B1-Enter>>")
 
-    def on_cell_enter(self, event, row, col):
+    def on_cell_enter(self, event, row, col, right=False):
         self.update_cell(row, col)
 
     def update_cell(self, row, col):
         selected_type = self.cell_type_var.get()
-        if selected_type == "traversable":
-            self.grid_values[row, col] = 1
-        elif selected_type == "occupied":
-            self.grid_values[row, col] = 0
+        if self.right:
+            if self.grid_values[row, col] < 0:
+                self.grid_values[row, col] = 0
+            else:
+                self.grid_values[row, col] = -1
+        else:
+            if selected_type == "traversable":
+                self.grid_values[row, col] = 1
+            elif selected_type == "occupied":
+                self.grid_values[row, col] = 0
 
         cell_value = self.grid_values[row, col]
-        cell_color = "white" if cell_value >= 1 else "grey"
+        if cell_value >= 1:
+            cell_color = "white"
+        elif cell_value == 0:
+            cell_color = "grey"
+        else:
+            cell_color = "black"
         self.labels[row][col].config(bg=cell_color, text="")  # Update background color of the label
 
     def save_as_csv(self):
@@ -178,26 +194,39 @@ class GridCreator:
         elif delta < 0:
             self.canvas.yview_scroll(1, "units")
 
-    def assign_unique_values(self):
+    def assign_unique_values(self, x_start=0, assigned_values=None):
         unique_value = np.max(self.grid_values) + 1
-        assigned_values = {}  # Dictionary to store already assigned values
+        if assigned_values is None:
+            assigned_values = {}  # Dictionary to store already assigned values
 
-        for i in range(len(self.grid_values)):
+        # find horizontal walls
+        x_max = len(self.grid_values)
+        for i in range(x_start, len(self.grid_values)):
+            if (self.grid_values[i, :] < 0).all():
+                x_max = i
+                break
+
+        for i in range(x_start, x_max):
             for j in range(len(self.grid_values[0])):
                 if self.grid_values[i, j] == 1:
-                    if (i, j) not in assigned_values:
+                    if (i-x_start, j) not in assigned_values:
                         self.grid_values[i, j] = unique_value
                         assigned_values[(i, j)] = unique_value
                         unique_value += 1
+                    elif (i-x_start, j) in assigned_values and x_start > 0:
+                        self.grid_values[i, j] = assigned_values[(i-x_start, j)]
 
         # Update labels based on updated grid_values
-        for i in range(len(self.grid_values)):
+        for i in range(x_start, x_max):
             for j in range(len(self.grid_values[0])):
                 if self.grid_values[i, j] == 0:
                     continue
                 cell_value = self.grid_values[i, j]
                 cell_color = "white" if cell_value >= 1 else "grey"
                 self.labels[i][j].config(bg=cell_color, text=str(cell_value))
+
+        if x_max < len(self.grid_values):
+            self.assign_unique_values(x_start=x_max+1, assigned_values=assigned_values)
 
     def run(self):
         self.root.mainloop()
