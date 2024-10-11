@@ -13,10 +13,14 @@ class GridCreator:
         self.root = root
         self.root.title("Grid world creator")
         self.root.configure(bg="black")  # Set background color of root window
+        self.root.geometry("1000x1000")
+        # configure grid columns/rows which should be resized
+        self.root.columnconfigure(3, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
         # Create a frame to hold all widgets including scrollbars and canvas
         main_frame = tk.Frame(self.root, bg="black")
-        main_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        main_frame.grid(column=0, row=0, columnspan=4, sticky="nsew", padx=0, pady=0)
 
         # Create a canvas with scrollbars
         self.canvas = tk.Canvas(main_frame, bg="black")
@@ -43,37 +47,37 @@ class GridCreator:
 
         # Labels and input fields
         self.label_x = ttk.Label(self.root, text="Enter height (x):", background="black", foreground="white")
-        self.label_x.pack()
+        self.label_x.grid(column=0, row=1, sticky="nsew", padx=5, pady=5)
 
         self.entry_x = ttk.Entry(self.root)
+        self.entry_x.grid(column=0, row=2, sticky="nsew", padx=5, pady=5)
         self.entry_x.insert(0, "5")
-        self.entry_x.pack()
 
         self.label_y = ttk.Label(self.root, text="Enter width (y):", background="black", foreground="white")
-        self.label_y.pack()
+        self.label_y.grid(column=1, row=1, sticky="nsew", padx=5, pady=5)
 
         self.entry_y = ttk.Entry(self.root)
+        self.entry_y.grid(column=1, row=2, sticky="nsew", padx=5, pady=5)
         self.entry_y.insert(0, "5")
-        self.entry_y.pack()
 
         self.generate_button = ttk.Button(self.root, text="Generate Grid", command=self.generate_grid)
-        self.generate_button.pack()
+        self.generate_button.grid(column=2, row=2, sticky="nsew", padx=5, pady=5)
 
         self.label_type = ttk.Label(self.root, text="Select cell type:", background="black", foreground="white")
-        self.label_type.pack()
+        self.label_type.grid(column=0, row=3, sticky="nsew", padx=5, pady=5)
 
         self.cell_type_var = tk.StringVar()
         self.cell_type_var.set("traversable")  # Default value
 
         self.cell_type_dropdown = ttk.Combobox(self.root, textvariable=self.cell_type_var,
                                                values=["traversable", "occupied"])
-        self.cell_type_dropdown.pack()
+        self.cell_type_dropdown.grid(column=1, row=3, sticky="nsew", padx=5, pady=5)
 
         self.save_button = ttk.Button(self.root, text="Save as CSV", command=self.save_as_csv)
-        self.save_button.pack()
+        self.save_button.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
 
         self.assign_button = ttk.Button(self.root, text="Assign Unique Values", command=self.assign_unique_values)
-        self.assign_button.pack()
+        self.assign_button.grid(column=2, row=3, sticky="nsew", padx=5, pady=5)
 
         self.grid_values = None  # 2D list to hold grid cell values
         self.labels = []  # 2D list to hold label widgets
