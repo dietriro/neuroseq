@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 import numpy as np
 
@@ -62,16 +63,6 @@ class GridCreator:
 
         self.generate_button = ttk.Button(self.root, text="Generate Grid", command=self.generate_grid)
         self.generate_button.grid(column=2, row=2, sticky="nsew", padx=5, pady=5)
-
-        self.label_type = ttk.Label(self.root, text="Select cell type:", background="black", foreground="white")
-        self.label_type.grid(column=0, row=3, sticky="nsew", padx=5, pady=5)
-
-        self.cell_type_var = tk.StringVar()
-        self.cell_type_var.set("traversable")  # Default value
-
-        self.cell_type_dropdown = ttk.Combobox(self.root, textvariable=self.cell_type_var,
-                                               values=["traversable", "occupied"])
-        self.cell_type_dropdown.grid(column=1, row=3, sticky="nsew", padx=5, pady=5)
 
         self.save_button = ttk.Button(self.root, text="Save as CSV", command=self.save_as_csv)
         self.save_button.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
@@ -138,6 +129,10 @@ class GridCreator:
         self.right = right
         self.update_cell(row, col)
 
+        widget = event.widget.winfo_containing(event.x_root, event.y_root)
+        if self.prev_label != widget:
+            self.prev_label = widget
+
     def on_move(self, event):
         if self.is_mouse_pressed:  # Check if left mouse button is pressed (bitwise check)
             widget = event.widget.winfo_containing(event.x_root, event.y_root)
@@ -151,17 +146,16 @@ class GridCreator:
         self.update_cell(row, col)
 
     def update_cell(self, row, col):
-        selected_type = self.cell_type_var.get()
         if self.right:
             if self.grid_values[row, col] < 0:
                 self.grid_values[row, col] = 0
             else:
                 self.grid_values[row, col] = -1
         else:
-            if selected_type == "traversable":
-                self.grid_values[row, col] = 1
-            elif selected_type == "occupied":
+            if self.grid_values[row, col] != 0:
                 self.grid_values[row, col] = 0
+            else:
+                self.grid_values[row, col] = 1
 
         cell_value = self.grid_values[row, col]
         if cell_value >= 1:
