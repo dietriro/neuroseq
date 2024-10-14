@@ -9,6 +9,13 @@ import csv
 from shtmbss2.common.config import PATH_MAPS
 
 
+class Location:
+    N = "n"
+    S = "s"
+    W = "w"
+    E = "e"
+
+
 class GridCreator:
     def __init__(self, root):
         self.root = root
@@ -61,14 +68,48 @@ class GridCreator:
         self.entry_y.grid(column=1, row=2, sticky="nsew", padx=5, pady=5)
         self.entry_y.insert(0, "5")
 
+        # Generate buttons for adding/removing columns
+        self.button_add_left = ttk.Button(self.root, text="L+", width=5,
+                                          command=lambda: self.add_cells(col=True, location=Location.W))
+        self.button_add_left.grid(column=0, row=3, sticky="nsw", padx=15, pady=5)
+
+        self.button_add_right = ttk.Button(self.root, text="R+", width=5,
+                                           command=lambda: self.add_cells(col=True, location=Location.E))
+        self.button_add_right.grid(column=0, row=3, sticky="nse", padx=15, pady=5)
+
+        self.button_add_top = ttk.Button(self.root, text="T+", width=5,
+                                         command=lambda: self.add_cells(row=True, location=Location.N))
+        self.button_add_top.grid(column=1, row=3, sticky="nsw", padx=15, pady=5)
+
+        self.button_add_down = ttk.Button(self.root, text="B+", width=5,
+                                          command=lambda: self.add_cells(row=True, location=Location.S))
+        self.button_add_down.grid(column=1, row=3, sticky="nse", padx=15, pady=5)
+
+        self.button_remove_left = ttk.Button(self.root, text="L-", width=5,
+                                             command=lambda: self.remove_cells(col=True, location=Location.W))
+        self.button_remove_left.grid(column=0, row=4, sticky="nsw", padx=15, pady=5)
+
+        self.button_remove_right = ttk.Button(self.root, text="R-", width=5,
+                                              command=lambda: self.remove_cells(col=True, location=Location.E))
+        self.button_remove_right.grid(column=0, row=4, sticky="nse", padx=15, pady=5)
+
+        self.button_remove_top = ttk.Button(self.root, text="T-", width=5,
+                                            command=lambda: self.remove_cells(row=True, location=Location.N))
+        self.button_remove_top.grid(column=1, row=4, sticky="nsw", padx=15, pady=5)
+
+        self.button_remove_down = ttk.Button(self.root, text="B-", width=5,
+                                             command=lambda: self.remove_cells(row=True, location=Location.S))
+        self.button_remove_down.grid(column=1, row=4, sticky="nse", padx=15, pady=5)
+
+        # Generate remaining buttons
         self.generate_button = ttk.Button(self.root, text="Generate Grid", command=self.generate_grid)
         self.generate_button.grid(column=2, row=2, sticky="nsew", padx=5, pady=5)
 
-        self.save_button = ttk.Button(self.root, text="Save as CSV", command=self.save_as_csv)
-        self.save_button.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
-
         self.assign_button = ttk.Button(self.root, text="Assign Unique Values", command=self.assign_unique_values)
         self.assign_button.grid(column=2, row=3, sticky="nsew", padx=5, pady=5)
+
+        self.save_button = ttk.Button(self.root, text="Save as CSV", command=self.save_as_csv)
+        self.save_button.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
 
         self.grid_values = None  # 2D list to hold grid cell values
         self.labels = []  # 2D list to hold label widgets
@@ -76,6 +117,154 @@ class GridCreator:
         self.prev_row = None
         self.prev_col = None
         self.prev_label = None
+
+    def create_cell(self, x, y, cell_color=None):
+        if cell_color is None:
+            cell_color = "white" if self.grid_values[x, y] >= 1 else "grey"
+
+        label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=10, height=6, bg=cell_color)
+        label.grid(row=x, column=y, padx=1, pady=1)
+        label.bind("<Button-1>", lambda event, row=x, col=y: self.on_cell_click(event, row, col))
+        label.bind("<Button-3>", lambda event, row=x, col=y: self.on_cell_click(event, row, col, right=True))
+        label.bind("<<B1-Enter>>", lambda event, row=x, col=y: self.on_cell_enter(event, row, col))
+        label.bind("<<B3-Enter>>", lambda event, row=x, col=y: self.on_cell_enter(event, row, col, right=True))
+
+        return label
+
+    def update_cell_location(self, x, y, new_x, new_y):
+        label: tk.Label = self.labels[x][y]
+
+        # Remove old bindings
+        label.unbind("<Button-1>")
+        label.unbind("<Button-3>")
+        label.unbind("<<B1-Enter>>")
+        label.unbind("<<B3-Enter>>")
+
+        # Set new location
+        label.grid(row=new_x, column=new_y, padx=1, pady=1)
+
+        # Create new bindings
+        label.bind("<Button-1>", lambda event, row=new_x, col=new_y: self.on_cell_click(event, row, col))
+        label.bind("<Button-3>", lambda event, row=new_x, col=new_y: self.on_cell_click(event, row, col, right=True))
+        label.bind("<<B1-Enter>>", lambda event, row=new_x, col=new_y: self.on_cell_enter(event, row, col))
+        label.bind("<<B3-Enter>>", lambda event, row=new_x, col=new_y: self.on_cell_enter(event, row, col, right=True))
+
+        self.labels[x][y] = label
+
+    def add_cells(self, row=False, col=False, location=None):
+        if self.labels is None or len(self.labels) <= 0 or len(self.labels[0]) <= 0 or self.grid_values is None:
+            return
+        if not row and not col:
+            messagebox.showerror("Error", "Either row or column have to be set.")
+            return
+        elif row and col:
+            messagebox.showerror("Error", "Only row or column can be set to 'true'.")
+            return
+        if type(location) is not str or location not in "nsew":
+            messagebox.showerror("Error", f"The location has to be a cardinal direction string (nsew): {location}")
+            return
+        if row and location not in "ns" or col and location not in "ew":
+            messagebox.showerror("Error", "Wrong combination of column/row and location (nsew).")
+            return
+
+        # Create new row/column
+        if row:
+            size = len(self.labels[0])
+            new_cells = list()
+            for i_cell in range(size):
+                x = 0 if location == Location.N else len(self.labels)
+                y = i_cell
+                new_cell = self.create_cell(x, y, cell_color="grey")
+                new_cells.append(new_cell)
+
+                if location == Location.N:
+                    for j_cell in range(len(self.labels)):
+                        self.update_cell_location(j_cell, i_cell, j_cell + 1, i_cell)
+
+            new_arr = np.zeros((1, self.grid_values.shape[1]), dtype=np.int8)
+            if location == Location.N:
+
+                self.labels = [new_cells] + self.labels
+                self.grid_values = np.concatenate([new_arr, self.grid_values], axis=0, dtype=np.int8)
+            else:
+                self.labels = self.labels + [new_cells]
+                self.grid_values = np.concatenate([self.grid_values, new_arr], axis=0, dtype=np.int8)
+        else:
+            size = len(self.labels)
+            y = 0 if location == Location.W else len(self.labels[0])
+            for i_cell in range(size):
+                x = i_cell
+                new_cell = self.create_cell(x, y, cell_color="grey")
+
+                if location == Location.W:
+                    for j_cell in range(len(self.labels[i_cell])):
+                        self.update_cell_location(i_cell, j_cell, i_cell, j_cell + 1)
+                    self.labels[i_cell] = [new_cell] + self.labels[i_cell]
+                else:
+                    self.labels[i_cell] = self.labels[i_cell] + [new_cell]
+
+            new_arr = np.zeros((self.grid_values.shape[0], 1), dtype=np.int8)
+            if location == Location.W:
+                self.grid_values = np.concatenate(
+                    [np.zeros((self.grid_values.shape[0], 1), dtype=np.int8), self.grid_values], axis=1, dtype=np.int8)
+            else:
+                self.grid_values = np.concatenate([self.grid_values, new_arr], axis=1, dtype=np.int8)
+
+        # Update the canvas scroll region
+        self.canvas.update_idletasks()  # Ensure updates are applied before configuring scroll region
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def remove_cells(self, row=False, col=False, location=None):
+        if self.labels is None or len(self.labels) <= 0 or len(self.labels[0]) <= 0 or self.grid_values is None:
+            return
+        if not row and not col:
+            messagebox.showerror("Error", "Either row or column have to be set.")
+            return
+        elif row and col:
+            messagebox.showerror("Error", "Only row or column can be set to 'true'.")
+            return
+        if type(location) is not str or location not in "nsew":
+            messagebox.showerror("Error", f"The location has to be a cardinal direction string (nsew): {location}")
+            return
+        if row and location not in "ns" or col and location not in "ew":
+            messagebox.showerror("Error", "Wrong combination of column/row and location (nsew).")
+            return
+
+        # Create new row/column
+        if row:
+            size = len(self.labels[0])
+            x = 0 if location == Location.N else len(self.labels) - 1
+
+            # Update old cells
+            if location == Location.N:
+                for i_x in range(1, len(self.labels)):
+                    for i_y in range(size):
+                        self.update_cell_location(i_x, i_y, i_x + 1, i_y)
+
+            # Remove row from labels and grid values
+            labels = self.labels.pop(x)
+            for label in labels:
+                label.destroy()
+            self.grid_values = np.delete(self.grid_values, x, axis=0)
+        else:
+            size = len(self.labels)
+            y = 0 if location == Location.W else len(self.labels[0]) - 1
+
+            # Update old cells
+            for i_x in range(size):
+                if location == Location.W:
+                    for i_y in range(1, len(self.labels[i_x])):
+                        self.update_cell_location(i_x, i_y, i_x + 1, i_y)
+                # Remove row from labels
+                label = self.labels[i_x].pop(y)
+                label.destroy()
+
+            # Remove row from grid values
+            self.grid_values = np.delete(self.grid_values, y, axis=1)
+
+        # Update the canvas scroll region
+        self.canvas.update_idletasks()  # Ensure updates are applied before configuring scroll region
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def generate_grid(self):
         try:
@@ -102,17 +291,11 @@ class GridCreator:
             # Create the grid
             for i in range(x):
                 for j in range(y):
-                    cell_value = self.grid_values[i, j]
-                    cell_color = "white" if cell_value >= 1 else "grey"
+                    # Create new label (grid cell)
+                    label = self.create_cell(i, j)
 
-                    label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=10, height=6, bg=cell_color)
-                    label.grid(row=i, column=j, padx=1, pady=1)
-                    label.bind("<Button-1>", lambda event, row=i, col=j: self.on_cell_click(event, row, col))
-                    label.bind("<Button-3>", lambda event, row=i, col=j: self.on_cell_click(event, row, col, right=True))
-                    label.bind("<<B1-Enter>>", lambda event, row=i, col=j: self.on_cell_enter(event, row, col))
-                    label.bind("<<B3-Enter>>", lambda event, row=i, col=j: self.on_cell_enter(event, row, col, right=True))
-
-                    self.labels[i][j] = label  # Store label in 2D list
+                    # Store label in 2D list
+                    self.labels[i][j] = label
 
             # Update the canvas scroll region
             self.canvas.update_idletasks()  # Ensure updates are applied before configuring scroll region
@@ -207,12 +390,12 @@ class GridCreator:
         for i in range(x_start, x_max):
             for j in range(len(self.grid_values[0])):
                 if self.grid_values[i, j] == 1:
-                    if (i-x_start, j) not in assigned_values:
+                    if (i - x_start, j) not in assigned_values:
                         self.grid_values[i, j] = unique_value
                         assigned_values[(i, j)] = unique_value
                         unique_value += 1
-                    elif (i-x_start, j) in assigned_values and x_start > 0:
-                        self.grid_values[i, j] = assigned_values[(i-x_start, j)]
+                    elif (i - x_start, j) in assigned_values and x_start > 0:
+                        self.grid_values[i, j] = assigned_values[(i - x_start, j)]
 
         # Update labels based on updated grid_values
         for i in range(x_start, x_max):
@@ -224,10 +407,11 @@ class GridCreator:
                 self.labels[i][j].config(bg=cell_color, text=str(cell_value))
 
         if x_max < len(self.grid_values):
-            self.assign_unique_values(x_start=x_max+1, assigned_values=assigned_values)
+            self.assign_unique_values(x_start=x_max + 1, assigned_values=assigned_values)
 
     def run(self):
         self.root.mainloop()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
