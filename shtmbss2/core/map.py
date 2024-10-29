@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from shtmbss2.common.config import *
+from shtmbss2.core.data import get_last_experiment_num, get_experiment_folder
 from shtmbss2.core.logging import log
 
 
@@ -249,8 +250,9 @@ class Map:
         if show_plot:
             plt.show()
 
-    def plot_graph_history(self, history_range=None, fps=1, only_traversable=True, arrows=False,
-                           label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False):
+    def plot_graph_history(self, network, history_range=None, fps=1, only_traversable=True, arrows=False,
+                           label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False,
+                           save_plot=True):
         if history_range is None:
             history_range = list(range(len(self.graph_history)))
 
@@ -264,7 +266,19 @@ class Map:
                 ax.set_title(f'{title.capitalize()} {frame}', fontsize=30)
 
         ani = FuncAnimation(fig, animate_graph, frames=len(self.graph_history), repeat=False)
-        ani.save('graph.gif', writer='pillow', fps=fps)
+
+        if save_plot:
+            experiment_num = get_last_experiment_num(network, network.p.experiment.id, network.p.experiment.type) + 1
+            experiment_folder = get_experiment_folder(network, network.p.experiment.type, network.p.experiment.id,
+                                                      experiment_num)
+
+            if not os.path.exists(experiment_folder):
+                os.makedirs(experiment_folder)
+
+            file_path = join(experiment_folder,
+                             f'graph_{network.network_state}.gif'
+                             )
+            ani.save(file_path, writer='pillow', fps=fps)
 
         if not show_plot:
             plt.close()

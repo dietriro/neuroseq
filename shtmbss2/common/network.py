@@ -11,6 +11,7 @@ from types import ModuleType, FunctionType
 from gc import get_referents
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
+from pyNN.network import Network
 from pyNN.random import NumpyRNG
 from tabulate import tabulate
 from abc import ABC, abstractmethod
@@ -454,6 +455,9 @@ class SHTMBase(ABC):
             num_active_neuron_thresh = self.p.network.pattern_size * 1.5
 
         con_id = self.p.network.num_symbols - 1
+        # compare the spike times of all pre/post neurons. If a pre-neuron caused a post-neuron to fire (i.e. spiked
+        # within a window before the post and has a connection to post) then set a trace-offset and reduce the adaptive
+        # threshold subsequently.
         for i_sym in range(1, self.p.network.num_symbols):
             num_active_neurons = 0
             trace_offset = 1.0
@@ -478,10 +482,15 @@ class SHTMBase(ABC):
                                 break
                 con_id += 1
 
+            # calculate a value representing the difference between the number of active neurons and the set threshold
             target_diff = num_active_neuron_thresh - num_active_neurons
-            if target_diff < 0 or target_diff == num_active_neuron_thresh:
+            if target_diff <= 0:
+                # if more or same number as expected neurons are active, no offset is needed
                 target_offset = 0
             else:
+                # if less neurons than expected (for an active symbol) are active, then this indicates a unique,
+                # unambiguous path -> set a target-offset and reduce the adaptive threshold to make the neuron fire
+                # earlier
                 target_offset = 0.2
             log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
 
@@ -1291,6 +1300,9 @@ class SHTMTotal(SHTMBase, ABC):
     def save_full_state(self, running_avg_perc=0.5, optimized_parameter_ranges=None, save_setup=False):
         log.debug("Saving full state of network and experiment.")
 
+        if self.network_state == NetworkState.REPLAY:
+            self.p.experiment.id += f"_{NetworkState.REPLAY}"
+
         if (self.p.experiment.type in
                 [ExperimentType.EVAL_MULTI, ExperimentType.OPT_GRID, ExperimentType.OPT_GRID_MULTI]):
             if self.instance_id is not None and self.instance_id == 0 and save_setup:
@@ -1313,6 +1325,7 @@ class SHTMTotal(SHTMBase, ABC):
         self.save_config()
         self.save_performance_data()
         self.save_network_data()
+        self.map.plot_graph_history(self, arrows=True, save_plot=True, show_plot=False)
 
     def load_network_data(self, experiment_type, experiment_num, experiment_subnum=None, instance_id=None):
         # ToDo: Check if this works with bss2
