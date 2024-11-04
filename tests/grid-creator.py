@@ -1,4 +1,4 @@
-import time
+import os
 import tkinter as tk
 import numpy as np
 
@@ -16,6 +16,17 @@ class Location:
     E = "e"
 
 
+def char_to_num(char):
+    if len(char) > 1:
+        return int(char)
+    ord_id = ord(char.lower()) - 95
+    print(char)
+    if 2 <= ord_id <= 27:
+        return ord_id
+    else:
+        return int(char)
+
+
 class GridCreator:
     def __init__(self, root):
         self.root = root
@@ -23,12 +34,12 @@ class GridCreator:
         self.root.configure(bg="black")  # Set background color of root window
         self.root.geometry("1000x1000")
         # configure grid columns/rows which should be resized
-        self.root.columnconfigure(3, weight=1)
+        self.root.columnconfigure(4, weight=1)
         self.root.rowconfigure(0, weight=1)
 
         # Create a frame to hold all widgets including scrollbars and canvas
         main_frame = tk.Frame(self.root, bg="black")
-        main_frame.grid(column=0, row=0, columnspan=4, sticky="nsew", padx=0, pady=0)
+        main_frame.grid(column=0, row=0, columnspan=5, sticky="nsew", padx=0, pady=0)
 
         # Create a canvas with scrollbars
         self.canvas = tk.Canvas(main_frame, bg="black")
@@ -108,8 +119,22 @@ class GridCreator:
         self.assign_button = ttk.Button(self.root, text="Assign Unique Values", command=self.assign_unique_values)
         self.assign_button.grid(column=2, row=3, sticky="nsew", padx=5, pady=5)
 
+
+        # Buttons for loading/saving map
+        map_files = [map_file for map_file in os.listdir(PATH_MAPS) if map_file.endswith('.csv')]
+
+        self.load_map_var = tk.StringVar()
+        self.load_map_var.set(map_files[0])
+
+        self.select_map_dropdown = ttk.Combobox(self.root, textvariable=self.load_map_var,
+                                              values=map_files)
+        self.select_map_dropdown.grid(column=3, row=2, sticky="nsew", padx=5, pady=5)
+
+        self.load_map_button = ttk.Button(self.root, text="Load map", command=self.load_map)
+        self.load_map_button.grid(column=3, row=3, sticky="nsew", padx=5, pady=5)
+
         self.save_button = ttk.Button(self.root, text="Save as CSV", command=self.save_as_csv)
-        self.save_button.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
+        self.save_button.grid(column=3, row=4, sticky="nsew", padx=5, pady=5)
 
         self.grid_values = None  # 2D list to hold grid cell values
         self.labels = []  # 2D list to hold label widgets
@@ -120,7 +145,12 @@ class GridCreator:
 
     def create_cell(self, x, y, cell_color=None):
         if cell_color is None:
-            cell_color = "white" if self.grid_values[x, y] >= 1 else "grey"
+            if self.grid_values[x, y] >= 1:
+                cell_color = "white"
+            elif self.grid_values[x, y] < 0:
+                cell_color = "black"
+            else:
+                cell_color = "grey"
 
         label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=10, height=6, bg=cell_color)
         label.grid(row=x, column=y, padx=1, pady=1)
@@ -153,6 +183,7 @@ class GridCreator:
 
     def add_cells(self, row=False, col=False, location=None):
         if self.labels is None or len(self.labels) <= 0 or len(self.labels[0]) <= 0 or self.grid_values is None:
+            self.generate_grid(x=1, y=1)
             return
         if not row and not col:
             messagebox.showerror("Error", "Either row or column have to be set.")
@@ -266,10 +297,12 @@ class GridCreator:
         self.canvas.update_idletasks()  # Ensure updates are applied before configuring scroll region
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def generate_grid(self):
+    def generate_grid(self, x=None, y=None, grid_values=None):
         try:
-            x = int(self.entry_x.get())
-            y = int(self.entry_y.get())
+            if x is None:
+                x = int(self.entry_x.get())
+            if y is None:
+                y = int(self.entry_y.get())
 
             if x <= 0 or y <= 0:
                 messagebox.showerror("Error", "Dimensions must be positive integers.")
@@ -280,7 +313,10 @@ class GridCreator:
                 widget.destroy()
 
             # Initialize grid_values and labels lists
-            self.grid_values = np.zeros((x, y), dtype=int)
+            if grid_values is None:
+                self.grid_values = np.zeros((x, y), dtype=int)
+            else:
+                self.grid_values = grid_values
             self.labels = [[None for _ in range(y)] for _ in range(x)]
 
             self.root.bind("<B1-Motion>", lambda event: self.on_move(event))
@@ -296,6 +332,8 @@ class GridCreator:
 
                     # Store label in 2D list
                     self.labels[i][j] = label
+                    if self.grid_values[i][j] > 1:
+                        self.labels[i][j].config(text=str(self.grid_values[i][j]))
 
             # Update the canvas scroll region
             self.canvas.update_idletasks()  # Ensure updates are applied before configuring scroll region
@@ -349,6 +387,35 @@ class GridCreator:
             cell_color = "black"
         self.labels[row][col].config(bg=cell_color, text="")  # Update background color of the label
 
+    def load_map(self):
+        try:
+            map_path = os.path.join(PATH_MAPS, self.load_map_var.get())
+            if not os.path.exists(map_path):
+                messagebox.showerror("Error", f"Failed to load map, path does not exist: {map_path}")
+
+            grid_values = list()
+            with open(map_path) as csvfile:
+                map_reader = csv.reader(csvfile, delimiter=',', quotechar='|')
+                for row in map_reader:
+                    row = [char_to_num(char) for char in row]
+                    grid_values.append(row)
+
+            grid_values = np.array(grid_values, dtype=np.int8)
+            print(grid_values)
+
+            self.generate_grid(x=grid_values.shape[0], y=grid_values.shape[1], grid_values=grid_values)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load map: {str(e)}")
+
+
+    def cell_conversion(self, content):
+        if content < 2:
+            return content
+
+        return chr(content+63)
+
+
     def save_as_csv(self):
         try:
             if not self.grid_values.any():
@@ -361,7 +428,8 @@ class GridCreator:
                 with open(filename, "w", newline="") as csvfile:
                     csvwriter = csv.writer(csvfile)
                     for row in self.grid_values:
-                        csvwriter.writerow(row.tolist())
+                        row_final = [self.cell_conversion(char) for char in row]
+                        csvwriter.writerow(row_final)
 
                 messagebox.showinfo("Save Successful", f"Grid saved as {filename}")
 
