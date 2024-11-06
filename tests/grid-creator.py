@@ -20,7 +20,6 @@ def char_to_num(char):
     if len(char) > 1:
         return int(char)
     ord_id = ord(char.lower()) - 95
-    print(char)
     if 2 <= ord_id <= 27:
         return ord_id
     else:
@@ -401,7 +400,6 @@ class GridCreator:
                     grid_values.append(row)
 
             grid_values = np.array(grid_values, dtype=np.int8)
-            print(grid_values)
 
             self.generate_grid(x=grid_values.shape[0], y=grid_values.shape[1], grid_values=grid_values)
 
