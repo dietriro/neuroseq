@@ -459,7 +459,7 @@ class SHTMBase(ABC):
             num_active_neurons = 0
             trace_offset = 1.0
             spikes_i = self.neuron_events[NeuronType.Soma][i_sym]
-            finished = False
+            num_active_cons = 0
             for k_sym in range(self.p.network.num_symbols):
                 if i_sym == k_sym:
                     continue
@@ -468,31 +468,32 @@ class SHTMBase(ABC):
                 num_active_neurons = 0
                 for i_neuron, spikes_i_i in enumerate(spikes_i):
                     num_active_neurons += int(len(spikes_i_i) > 0)
-                    if finished:
+                    if num_active_cons >= self.p.network.pattern_size:
                         continue
                     for k_neuron, spikes_k_k in enumerate(spikes_k):
                         if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
                             delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
                             if np.any((delta_t < 60) & (delta_t > 4)):
-                                trace_offset = 0.8
-                                finished = True
+                                log.debug(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
+                                trace_offset = 0.9
+                                num_active_cons += 1
                                 break
                 con_id += 1
 
             # calculate a value representing the difference between the number of active neurons and the set threshold
-            target_diff = num_active_neuron_thresh - num_active_neurons
-            if target_diff <= 0:
-                # if more or same number as expected neurons are active, no offset is needed
-                target_offset = 0
+            max_target_offset = 0.2
+            target_perc = self.p.network.pattern_size / self.p.network.num_neurons
+            perc_act_neurons = num_active_neurons / self.p.network.num_neurons
+
+            if perc_act_neurons >= target_perc:
+                target_offset = np.e ** (-8 * (perc_act_neurons - target_perc)) * max_target_offset
             else:
-                # if less neurons than expected (for an active symbol) are active, then this indicates a unique,
-                # unambiguous path -> set a target-offset and reduce the adaptive threshold to make the neuron fire
-                # earlier
-                target_offset = 0.2
+                target_offset = np.e ** (20 * (perc_act_neurons - target_perc)) * max_target_offset
+
             log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
 
             V_th = self.neurons_exc[i_sym].get("V_th")
-            V_th_new = V_th * trace_offset - target_offset * V_th
+            V_th_new = V_th * trace_offset - V_th * target_offset
             self.neurons_exc[i_sym].set(V_th=V_th_new)
             if V_th != V_th_new:
                 log.debug(f"[{id_to_symbol(i_sym)}]  V_th = {V_th},  V_th' = {V_th_new}")
