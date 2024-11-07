@@ -50,7 +50,7 @@ class Performance(ABC):
         pass
 
     def compute(self, neuron_events, method=PerformanceType.ALL_SYMBOLS, t_min=None):
-        log.info(f"Computing performance for {len(self.p.experiment.sequences)} Sequences.")
+        log.debug(f"Computing performance for {len(self.p.experiment.sequences)} Sequences.")
 
         ratio_fp_activation = 0.5
         ratio_fn_activation = 0.5

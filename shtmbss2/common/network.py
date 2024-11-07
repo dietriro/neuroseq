@@ -1137,8 +1137,8 @@ class SHTMTotal(SHTMBase, ABC):
             if self.network_state == NetworkState.REPLAY:
                 self.update_adapt_thresholds(num_active_neuron_thresh=num_active_neuron_thresh)
 
-        # print performance results
-        self.print_performance_results()
+            # print performance results
+            self.print_performance_results()
 
         self.experiment_episodes += steps
         self.p.experiment.episodes = self.experiment_episodes
@@ -1153,7 +1153,7 @@ class SHTMTotal(SHTMBase, ABC):
                    f"Epochs:  {performance_results['num-epochs']}")
 
     def __run_plasticity_singular(self, runtime, sim_start_time, dyn_exc_inh=False):
-        log.info("Starting plasticity calculations")
+        log.debug("Starting plasticity calculations")
 
         active_synapse_post = np.zeros((self.p.network.num_symbols, self.p.network.num_neurons))
 
@@ -1176,7 +1176,7 @@ class SHTMTotal(SHTMBase, ABC):
         self.__update_dendritic_trace()
 
     def __run_plasticity_parallel(self, runtime, sim_start_time, dyn_exc_inh=False):
-        log.info("Starting plasticity calculations")
+        log.debug("Starting plasticity calculations")
 
         active_synapse_post = np.zeros((self.p.network.num_symbols, self.p.network.num_neurons))
 
