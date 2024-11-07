@@ -11,7 +11,6 @@ from types import ModuleType, FunctionType
 from gc import get_referents
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
-from pyNN.network import Network
 from pyNN.random import NumpyRNG
 from tabulate import tabulate
 from abc import ABC, abstractmethod
@@ -51,7 +50,6 @@ else:
 ID_PRE = 0
 ID_POST = 1
 NON_PICKLE_OBJECTS = ["post_somas", "projection", "shtm"]
-
 
 # Custom objects know their class.
 # Function objects seem to know way too much, including modules.
@@ -223,7 +221,8 @@ class SHTMBase(ABC):
         spike_time = None
 
         if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
-            seq_distribution = np.round(np.array(self.p.encoding.probabilities) * self.p.encoding.num_repetitions).astype(int)
+            seq_distribution = np.round(
+                np.array(self.p.encoding.probabilities) * self.p.encoding.num_repetitions).astype(int)
             if np.sum(seq_distribution) > self.p.encoding.num_repetitions:
                 log.warn(f"Accumulated sum of repetitions per sequence exceeds total number of repetitions "
                          f"({np.sum(seq_distribution)} > {self.p.encoding.num_repetitions}).")
@@ -251,8 +250,8 @@ class SHTMBase(ABC):
 
                     if self.p.network.ext_indiv:
                         if i_element == 0:
-                            neuron_range = range(starting_symbols[element]*self.p.network.pattern_size,
-                                                 (starting_symbols[element]+1)*self.p.network.pattern_size)
+                            neuron_range = range(starting_symbols[element] * self.p.network.pattern_size,
+                                                 (starting_symbols[element] + 1) * self.p.network.pattern_size)
                             starting_symbols[element] += 1
                         else:
                             neuron_range = range(self.p.network.num_neurons)
@@ -273,7 +272,7 @@ class SHTMBase(ABC):
             if self.p.network.ext_indiv:
                 self.neurons_ext[i_sym].set(spike_times=spike_times[i_sym])
             else:
-                self.neurons_ext[i_sym:i_sym+1].set(spike_times=spike_times[i_sym])
+                self.neurons_ext[i_sym:i_sym + 1].set(spike_times=spike_times[i_sym])
 
         self.spike_times_ext = spike_times_sym
 
@@ -585,7 +584,7 @@ class SHTMBase(ABC):
                     if neurons_i == NeuronType.Dendrite:
                         spikes_post = deepcopy(self.neuron_events[NeuronType.Soma][i_symbol])
                         plot_dendritic_events(ax, spikes[1:], spikes_post,
-                                              tau_dap=self.p.neurons.dendrite.tau_dAP*self.p.encoding.t_scaling_factor,
+                                              tau_dap=self.p.neurons.dendrite.tau_dAP * self.p.encoding.t_scaling_factor,
                                               color=f"C{neurons_i.COLOR_ID}", label=neurons_i.NAME.capitalize(),
                                               seq_start=seq_start, seq_end=seq_end, epoch_end=x_lim_upper)
                     else:
@@ -597,7 +596,8 @@ class SHTMBase(ABC):
 
                 # plot external spikes as reference lines
                 for spike_time_ext_sym_i in self.spike_times_ext[i_symbol]:
-                    ax.plot([spike_time_ext_sym_i, spike_time_ext_sym_i], [0.6, self.p.network.num_neurons+0.4], c="grey",
+                    ax.plot([spike_time_ext_sym_i, spike_time_ext_sym_i], [0.6, self.p.network.num_neurons + 0.4],
+                            c="grey",
                             label="External")
 
                 # Configure the plot layout
@@ -628,8 +628,6 @@ class SHTMBase(ABC):
             ax.tick_params(axis='x', labelsize=self.p_plot.events.fontsize.tick_labels)
 
             x_lim_lower += (len(self.p.experiment.sequences[0]) - 1) * self.p.encoding.dt_stm + self.p.encoding.dt_seq
-
-
 
         if n_cols > 1:
             plt.subplots_adjust(wspace=self.p_plot.events.padding.w_space)
@@ -730,11 +728,11 @@ class SHTMBase(ABC):
         last_group_start = 0
         for group_id in group_ids:
             if len(times[last_group_start:group_id]) >= ratio_fn_activation * self.p.network.pattern_size:
-                times_list.append((np.mean(times[last_group_start:group_id]), i_sym, group_id-last_group_start))
+                times_list.append((np.mean(times[last_group_start:group_id]), i_sym, group_id - last_group_start))
             last_group_start = group_id
         if len(times) > 0:
             if len(times[last_group_start:]) >= ratio_fn_activation * self.p.network.pattern_size:
-                times_list.append((np.mean(times[last_group_start:]), i_sym, len(times)-last_group_start))
+                times_list.append((np.mean(times[last_group_start:]), i_sym, len(times) - last_group_start))
         else:
             times_list.append((0, i_sym, 0))
 
@@ -767,13 +765,14 @@ class SHTMBase(ABC):
         for i_soma, soma_i in enumerate(soma_times[:-1]):
             node_activity[id_to_symbol(soma_i[1])] = SomaState.ACTIVE
             for i_dend, dend_i in enumerate(dendrite_times):
-                for k_soma, soma_k in enumerate(soma_times[i_soma+1:]):
+                for k_soma, soma_k in enumerate(soma_times[i_soma + 1:]):
                     if soma_k[1] != dend_i[1]:
                         continue
                     if not 4 < soma_k[0] - dend_i[0] < self.p.neurons.dendrite.tau_dAP:
                         break
                     # get weights for connection from soma_i to soma_i+1
-                    i_con = soma_i[1] * (self.p.network.num_symbols - 1) + soma_k[1] - (1 if soma_k[1] > soma_i[1] else 0)
+                    i_con = soma_i[1] * (self.p.network.num_symbols - 1) + soma_k[1] - (
+                        1 if soma_k[1] > soma_i[1] else 0)
                     weights = self.exc_to_exc[i_con].get("weight", format="array")
                     num_active_connections = np.sum(
                         np.ceil(np.nansum(weights, axis=0) / self.p.plasticity.w_mature) > num_weights_thresh)
@@ -1153,7 +1152,6 @@ class SHTMTotal(SHTMBase, ABC):
         log.essens(f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
                    f"Epochs:  {performance_results['num-epochs']}")
 
-
     def __run_plasticity_singular(self, runtime, sim_start_time, dyn_exc_inh=False):
         log.info("Starting plasticity calculations")
 
@@ -1452,12 +1450,12 @@ class Plasticity(ABC):
             self.scale_permanence(min_value=0, max_value=256)
 
     def scale_permanence(self, min_value, max_value):
-        factor = max_value/self.permanence_max
+        factor = max_value / self.permanence_max
         self.permanence_min = np.asarray(self.permanence_min * factor, dtype=int)
         self.permanence = copy.copy(self.permanence_min)
 
         self.permanence_max = int(max_value)
-        self.permanence_threshold = np.ones((len(self.projection)), dtype=int) * int(max_value/2)
+        self.permanence_threshold = np.ones((len(self.projection)), dtype=int) * int(max_value / 2)
 
         # self.target_rate_h *= max_value
         # self.correlation_threshold *= max_value
@@ -1503,9 +1501,9 @@ class Plasticity(ABC):
                     # if permanence - permanence_before < 0:
                     #     log.debug(f"{self.id}  d_permanence homeostasis: {permanence - permanence_before}")
                     # if self.debug and permanence - permanence_before < 0:
-                        # log.info(f"{self.id}  spikes: {spike_pre}, {spike_post}, {spike_dt}")
-                        # log.info(f"{self.id}  d_permanence facilitate: {d_facilitate}")
-                        # log.info(f"{self.id}  d_permanence homeostasis: {permanence - permanence_before}")
+                    # log.info(f"{self.id}  spikes: {spike_pre}, {spike_post}, {spike_dt}")
+                    # log.info(f"{self.id}  d_permanence facilitate: {d_facilitate}")
+                    # log.info(f"{self.id}  d_permanence homeostasis: {permanence - permanence_before}")
                     permanence_before = permanence
 
             permanence = self.__depress(permanence, permanence_min)
@@ -1569,7 +1567,6 @@ class Plasticity(ABC):
                     #     x += self.__to_int(np.exp(-spike_dt / self.tau_plus))
                     # else:
                     x += np.exp(-spike_dt / self.tau_plus)
-
 
         # Calculate accumulated z
         spike_pairs_dend_soma = 0
@@ -1645,7 +1642,7 @@ class Plasticity(ABC):
         # if self.int_conversion:
         #     z_prime /= 256
         if z_prime < 0:
-            z_prime = -np.exp(-z_prime/self.homeostasis_depression_rate)
+            z_prime = -np.exp(-z_prime / self.homeostasis_depression_rate)
 
         permanence = permanence + self.lambda_h * z_prime * self.permanence_max
         return max(min(permanence, self.permanence_max), permanence_min)
@@ -1742,7 +1739,8 @@ class Plasticity(ABC):
                 if not self.enable_structured_stdp:
                     weight[j, i] = permanence * 0.01
                 else:
-                    weight_offset = (permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
+                    weight_offset = (
+                                                permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
                     weight[j, i] = self.w_mature + weight_offset
                 if self.proj_post_soma_inh is not None:
                     weight_inh = self.proj_post_soma_inh.get("weight", format="array")
@@ -1759,7 +1757,7 @@ class Plasticity(ABC):
                     #     log.debug(f"- | W_inh[{i}] = {weight_inh.flatten()}")
                     self.proj_post_soma_inh.set(weight=weight_inh)
 
-        weight_diff = weight-weight_before
+        weight_diff = weight - weight_before
         if np.logical_and(weight_diff != 0, ~np.isnan(weight_diff)).any():
             self.projection.set(weight=weight)
 
