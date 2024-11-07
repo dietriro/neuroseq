@@ -1138,7 +1138,7 @@ class SHTMTotal(SHTMBase, ABC):
                 self.update_adapt_thresholds(num_active_neuron_thresh=num_active_neuron_thresh)
 
             # print performance results
-            self.print_performance_results()
+            self.print_performance_results(final=False)
 
         self.experiment_episodes += steps
         self.p.experiment.episodes = self.experiment_episodes
@@ -1146,11 +1146,16 @@ class SHTMTotal(SHTMBase, ABC):
         if self.p.experiment.save_final or self.p.experiment.save_auto:
             self.save_full_state()
 
-    def print_performance_results(self):
+    def print_performance_results(self, final=False):
         performance_results = self.performance.get_performance_dict(final_result=True,
                                                                     running_avgs=self.p.performance.running_avgs)
-        log.essens(f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
-                   f"Epochs:  {performance_results['num-epochs']}")
+        if final:
+            log.essens(f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
+                       f"Epochs:  {performance_results['num-epochs']}")
+        else:
+            log.essens(f"Performance:  {performance_results['error_last']}  |  "
+                       f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
+                       f"Epochs:  {performance_results['num-epochs']}")
 
     def __run_plasticity_singular(self, runtime, sim_start_time, dyn_exc_inh=False):
         log.debug("Starting plasticity calculations")
