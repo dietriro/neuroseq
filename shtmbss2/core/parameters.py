@@ -138,6 +138,7 @@ class NetworkParameters(Parameters):
         self.backend = NetworkParameterGroups.Backend()
         self.encoding = NetworkParameterGroups.Encoding()
         self.plasticity = NetworkParameterGroups.Plasticity()
+        self.replay = NetworkParameterGroups.Replay()
         self.neurons = NetworkParameterGroups.Neurons()
         self.synapses = NetworkParameterGroups.Synapses()
         self.calibration = NetworkParameterGroups.Calibration()
@@ -252,6 +253,12 @@ class NetworkParameterGroups:
             self.delta_t_max: float = None
             self.dt: float = None
         _to_evaluate: list = ["w_mature"]
+
+    class Replay(ParameterGroup):
+        def __init__(self):
+            self.v_thresh: float = None
+            self.theta_dAP: float = None
+            self.weight_factor_exc_inh: float = None
 
     class Neurons(ParameterGroup):
         def __init__(self):

@@ -410,14 +410,9 @@ class SHTMBase(ABC):
             theta_dAP = self.p.neurons.dendrite.theta_dAP
             weight_factor = 1
         elif new_network_state == NetworkState.REPLAY:
-            # original
-            # v_thresh = 5
-            # theta_dAP = 41.3
-            # weight_factor = 7.5
-            # probabilistic
-            v_thresh = 7
-            theta_dAP = 59
-            weight_factor = 1
+            v_thresh = self.p.replay.v_thresh
+            theta_dAP = self.p.replay.theta_dAP
+            weight_factor = self.p.replay.weight_factor_exc_inh
         else:
             return
 

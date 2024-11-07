@@ -67,6 +67,15 @@ plasticity:
   delta_t_min: 4
   delta_t_max: 75
   dt: 0.1
+replay:
+  # probabilistic
+  v_thresh: 7
+  theta_dAP: 41.3       # 59 should work better
+  weight_factor_exc_inh: 1
+  # original
+#  v_thresh: 5
+#  theta_dAP: 41.3
+#  weight_factor_exc_inh: 1
 neurons:
   inhibitory:
     c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000
