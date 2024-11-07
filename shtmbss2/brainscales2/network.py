@@ -186,7 +186,7 @@ class SHTMBase(network.SHTMBase, ABC):
         for i in range(len(somas)):
             somas.actual_hwparams[i].multicompartment.connect_soma = True
 
-    def init_neurons_inh(self, num_neurons=None):
+    def init_neurons_inh(self, num_neurons=None, tau_refrac=None):
         if num_neurons is None:
             num_neurons = self.p.network.num_symbols
 

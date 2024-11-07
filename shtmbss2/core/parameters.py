@@ -256,10 +256,22 @@ class NetworkParameterGroups:
     class Neurons(ParameterGroup):
         def __init__(self):
             self.inhibitory = NetworkParameterGroups.Inhibitory()
+            self.inhibitory_global = NetworkParameterGroups.InhibitoryGlobal()
             self.excitatory = NetworkParameterGroups.Excitatory()
             self.dendrite = NetworkParameterGroups.Dendrite()
 
     class Inhibitory(ParameterGroup):
+        def __init__(self):
+            self.c_m: float = None
+            self.v_rest: float = None
+            self.v_reset: float = None
+            self.v_thresh: float = None
+            self.tau_m: float = None
+            self.tau_syn_I: float = None
+            self.tau_syn_E: float = None
+            self.tau_refrac: float = None
+
+    class InhibitoryGlobal(ParameterGroup):
         def __init__(self):
             self.c_m: float = None
             self.v_rest: float = None

@@ -91,7 +91,7 @@ class SHTMBase(ABC):
         self.exc_to_exc = None
         self.exc_to_inh = None
         self.inh_to_exc = None
-        self.exc_to_inh_global = None
+        self.inh_to_inh_global = None
         self.inh_to_exc_global = None
 
         # Declare recordings
@@ -181,7 +181,8 @@ class SHTMBase(ABC):
         self.neurons_exc = self.init_all_neurons_exc()
 
         self.neurons_inh = self.init_neurons_inh()
-        self.neurons_inh_global = self.init_neurons_inh()
+        self.neurons_inh_global = self.init_neurons_inh(num_neurons=1,
+                                                        tau_refrac=self.p.neurons.inhibitory_global.tau_refrac)
 
         if self.p.network.ext_indiv:
             self.neurons_ext = [Population(self.p.network.num_neurons, SpikeSourceArray())
@@ -209,7 +210,7 @@ class SHTMBase(ABC):
             somas.actual_hwparams[i].multicompartment.connect_soma = True
 
     @abstractmethod
-    def init_neurons_inh(self, num_neurons=None):
+    def init_neurons_inh(self, num_neurons=None, tau_refrac=None):
         pass
 
     def init_external_input(self, init_recorder=False, init_performance=False):
@@ -336,15 +337,6 @@ class SHTMBase(ABC):
                 synapse_type=StaticSynapse(weight=weight, delay=self.p.synapses.delay_exc_inh),
                 receptor_type=self.p.synapses.receptor_exc_inh))
 
-        self.exc_to_inh_global = []
-        for i in range(self.p.network.num_symbols):
-            self.exc_to_inh_global.append(Projection(
-                self.get_neurons(NeuronType.Soma, symbol_id=i),
-                PopulationView(self.neurons_inh_global, [i]),
-                AllToAllConnector(),
-                synapse_type=StaticSynapse(weight=0, delay=self.p.synapses.delay_exc_inh),
-                receptor_type=self.p.synapses.receptor_exc_inh))
-
         self.inh_to_exc = []
         for i in range(self.p.network.num_symbols):
             self.inh_to_exc.append(Projection(
@@ -354,15 +346,24 @@ class SHTMBase(ABC):
                 synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc, delay=self.p.synapses.delay_inh_exc),
                 receptor_type=self.p.synapses.receptor_inh_exc))
 
+        self.inh_to_inh_global = []
+        for i in range(self.p.network.num_symbols):
+            self.inh_to_inh_global.append(Projection(
+                PopulationView(self.neurons_inh, [i]),
+                self.neurons_inh_global,
+                AllToAllConnector(),
+                synapse_type=StaticSynapse(weight=0),
+                receptor_type=self.p.synapses.receptor_exc_inh))
+
         self.inh_to_exc_global = []
         for i in range(self.p.network.num_symbols):
             inh_to_exc_global_i = list()
             for k_symbol in range(self.p.network.num_symbols):
                 inh_to_exc_global_i.append(Projection(
-                    PopulationView(self.neurons_inh_global, [i]),
+                    self.neurons_inh_global,
                     self.get_neurons(NeuronType.Soma, symbol_id=k_symbol),
                     AllToAllConnector(),
-                    synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc, delay=self.p.synapses.delay_inh_exc),
+                    synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc),
                     receptor_type=self.p.synapses.receptor_inh_exc))
             self.inh_to_exc_global.append(inh_to_exc_global_i)
 
@@ -441,10 +442,11 @@ class SHTMBase(ABC):
             weights = np.full(exc_to_inh.get("weight", format="array").shape, self.p.synapses.w_exc_inh)
             exc_to_inh.set(weight=weights)
 
-        if new_network_state == NetworkState.REPLAY:
-            for exc_to_inh_global in self.exc_to_inh_global:
-                weights = np.full(exc_to_inh_global.get("weight", format="array").shape, self.p.synapses.w_exc_inh * 80)
-                exc_to_inh_global.set(weight=weights)
+        # for new network (v2)
+        for inh_global in self.inh_to_inh_global:
+            weights = np.full(inh_global.get("weight", format="array").shape,
+                              self.p.synapses.w_exc_inh * self.p.network.pattern_size * 2)
+            inh_global.set(weight=weights)
 
         self.network_state = new_network_state
 
@@ -655,8 +657,7 @@ class SHTMBase(ABC):
         if file_path is not None:
             plt.savefig(f"{file_path}.pdf")
 
-            pickle.dump(fig, open(f'{file_path}.fig.pickle',
-                                  'wb'))  # This is for Python 3 - py2 may need `file` instead of `open`
+            pickle.dump(fig, open(f'{file_path}.fig.pickle', 'wb'))
 
     def plot_v_exc(self, alphabet_range, neuron_range='all', size=None, neuron_type=NeuronType.Soma, runtime=None,
                    show_legend=False, file_path=None):
@@ -1112,7 +1113,7 @@ class SHTMTotal(SHTMBase, ABC):
 
             self._retrieve_neuron_data()
 
-            if self.p.performance.compute_performance:
+            if self.p.performance.compute_performance and self.network_state == NetworkState.PREDICTIVE:
                 self.performance.compute(neuron_events=self.neuron_events,
                                          method=self.p.performance.method)
 

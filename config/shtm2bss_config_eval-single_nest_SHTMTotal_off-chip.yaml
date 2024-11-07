@@ -77,6 +77,8 @@ neurons:
     tau_syn_I: 1.0
     tau_syn_E: 0.5
     tau_refrac: 2
+  inhibitory_global:
+    tau_refrac: 8
   excitatory:
     c_m: 250
     v_rest: 0
