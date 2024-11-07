@@ -472,15 +472,16 @@ class SHTMBase(ABC):
                     for k_neuron, spikes_k_k in enumerate(spikes_k):
                         if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
                             delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
-                            if np.any((delta_t < 60) & (delta_t > 4)):
-                                log.debug(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
+                            # The value 56 is suited for theta_dAP = 59 and v_thresh = 6.5
+                            if np.any((delta_t < 56) & (delta_t > 4)):
+                                log.info(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
                                 trace_offset = 0.9
                                 num_active_cons += 1
                                 break
                 con_id += 1
 
             # calculate a value representing the difference between the number of active neurons and the set threshold
-            max_target_offset = 0.2
+            max_target_offset = 0.15
             target_perc = self.p.network.pattern_size / self.p.network.num_neurons
             perc_act_neurons = num_active_neurons / self.p.network.num_neurons
 

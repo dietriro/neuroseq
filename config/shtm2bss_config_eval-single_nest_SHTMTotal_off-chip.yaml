@@ -69,8 +69,8 @@ plasticity:
   dt: 0.1
 replay:
   # probabilistic
-  v_thresh: 7
-  theta_dAP: 41.3       # 59 should work better
+  v_thresh: 6.5
+  theta_dAP: 59       # 59 should work better
   weight_factor_exc_inh: 1
   # original
 #  v_thresh: 5
