@@ -34,7 +34,7 @@ class NeuronType:
     class InhibitoryGlobal:
         ID = 3
         NAME = "inhibitory_global"
-        COLOR_ID = 2
+        COLOR_ID = 3
 
     @staticmethod
     def get_all_types():

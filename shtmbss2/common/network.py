@@ -561,7 +561,8 @@ class SHTMBase(ABC):
 
         for i_seq in range(n_cols):
             if n_cols > 1:
-                x_lim_upper = x_lim_lower + (len(self.p.experiment.sequences[i_seq]) - 0.5) * self.p.encoding.dt_stm + self.p.encoding.t_exc_start
+                x_lim_upper = (x_lim_lower + (len(self.p.experiment.sequences[i_seq]) - 0.5) * self.p.encoding.dt_stm +
+                               self.p.encoding.t_exc_start)
             for i_symbol in symbols:
 
                 if len(symbols) == 1:
@@ -587,7 +588,7 @@ class SHTMBase(ABC):
                         spikes_post = deepcopy(self.neuron_events[NeuronType.Soma][i_symbol])
                         plot_dendritic_events(ax, spikes[1:], spikes_post,
                                               tau_dap=self.p.neurons.dendrite.tau_dAP*self.p.encoding.t_scaling_factor,
-                                              color=f"C{neurons_i.ID}", label=neurons_i.NAME.capitalize(),
+                                              color=f"C{neurons_i.COLOR_ID}", label=neurons_i.NAME.capitalize(),
                                               seq_start=seq_start, seq_end=seq_end, epoch_end=x_lim_upper)
                     else:
                         line_widths = 1.5
@@ -638,7 +639,7 @@ class SHTMBase(ABC):
         fig.text(0.5, 0.01, "Time [ms]", ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
 
         # Create custom legend for all plots
-        custom_lines = [Line2D([0], [0], color=f"C{n.ID}", label=n.NAME.capitalize(), lw=3) for n in neuron_types]
+        custom_lines = [Line2D([0], [0], color=f"C{n.COLOR_ID}", label=n.NAME.capitalize(), lw=3) for n in neuron_types]
         custom_lines.append(Line2D([0], [0], color=f"grey", label="External", lw=3))
 
         plt.figlegend(handles=custom_lines, loc=(0.715, 0.904), ncol=2, labelspacing=0.2,
