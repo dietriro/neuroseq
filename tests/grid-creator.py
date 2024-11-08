@@ -121,6 +121,7 @@ class GridCreator:
 
         # Buttons for loading/saving map
         map_files = [map_file for map_file in os.listdir(PATH_MAPS) if map_file.endswith('.csv')]
+        map_files = sorted(map_files)
 
         self.load_map_var = tk.StringVar()
         self.load_map_var.set(map_files[0])
