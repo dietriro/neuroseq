@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import networkx as nx
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.animation import FuncAnimation
 
 from shtmbss2.common.config import *
@@ -63,6 +64,19 @@ class Map:
         with open(file_path, 'r') as f:
             csv_reader = csv.reader(f)
             lines = list(csv_reader)
+
+        i_line = 0
+        while i_line < len(lines):
+            try:
+                line_arr = np.array(lines[i_line], dtype=np.int8)
+            except ValueError as e:
+                i_line += 1
+                continue
+
+            if (line_arr < 0).all():
+                lines.pop(i_line)
+            else:
+                i_line += 1
 
         # set dimensions of map from number of rows (x), cols (y)
         self.size_x = len(lines)
@@ -252,7 +266,7 @@ class Map:
 
     def plot_graph_history(self, network, history_range=None, fps=1, only_traversable=True, arrows=False,
                            label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False,
-                           save_plot=True):
+                           experiment_num=None, save_plot=True):
         if history_range is None:
             history_range = list(range(len(self.graph_history)))
 
@@ -268,7 +282,9 @@ class Map:
         ani = FuncAnimation(fig, animate_graph, frames=len(self.graph_history), repeat=False)
 
         if save_plot:
-            experiment_num = get_last_experiment_num(network, network.p.experiment.id, network.p.experiment.type) + 1
+            if experiment_num is None:
+                experiment_num = (get_last_experiment_num(network, network.p.experiment.id, network.p.experiment.type)
+                                  + 1)
             experiment_folder = get_experiment_folder(network, network.p.experiment.type, network.p.experiment.id,
                                                       experiment_num)
 
