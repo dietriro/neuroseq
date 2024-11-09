@@ -1113,10 +1113,9 @@ class SHTMTotal(SHTMBase, ABC):
                 self.performance.compute(neuron_events=self.neuron_events,
                                          method=self.p.performance.method)
 
-                # update graph representation
-                new_node_activity, new_edge_activity = self.get_activity()
-
-                self.map.update_graph(new_node_activity, new_edge_activity)
+            # update graph representation
+            new_node_activity, new_edge_activity = self.get_activity()
+            self.map.update_graph(new_node_activity, new_edge_activity)
 
             if plasticity_enabled:
                 if run_type == RunType.MULTI:
