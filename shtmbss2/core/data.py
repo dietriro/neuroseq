@@ -70,9 +70,7 @@ def get_last_instance(net, experiment_type, experiment_id, experiment_num):
 
 
 def get_experiment_folder(net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
-    net_name = net.__name__ if inspect.isclass(net) else str(net)
-
-    folder_name = f"{net_name}_{experiment_id}_{experiment_num:02d}"
+    folder_name = f"{experiment_id}_{net.p.experiment.map_name}_{experiment_num:02d}"
     folder_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend],
                        str(EXPERIMENT_SUBFOLDERS[experiment_type]),
                        folder_name)
