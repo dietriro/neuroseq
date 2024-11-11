@@ -344,3 +344,10 @@ def sparsen_list(list_full):
         prev_item = copy(item)
 
     return list_sparse
+
+
+def gen_map_name(map_name):
+    if map_name is None:
+        map_name = ""
+        log.warning("Map name is None. Setting it to an empty string now.")
+    return f"map_{map_name}"

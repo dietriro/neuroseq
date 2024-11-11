@@ -3,7 +3,7 @@ from abc import ABC
 
 from shtmbss2.common.config import *
 from shtmbss2.core.logging import log
-from shtmbss2.core.data import load_config, get_experiment_folder, load_yaml
+from shtmbss2.core.data import load_config, get_experiment_folder, load_yaml, gen_map_name
 
 
 class ParameterGroup:
@@ -146,6 +146,22 @@ class NetworkParameters(Parameters):
         super().__init__(network_type)
 
         self.config_type = ConfigType.NETWORK
+
+    def load_default_params(self, custom_params=None):
+        super().load_default_params(custom_params=custom_params)
+
+        if self.experiment.sequences is None:
+            self.load_sequences_from_config()
+
+    def load_sequences_from_config(self):
+        environments = load_yaml(PATH_CONFIG, f"{RuntimeConfig.config_prefix}_environments.yaml")
+        map_name = gen_map_name(self.experiment.map_name)
+        if map_name in environments.keys():
+            self.experiment.sequences = environments[f"map_{self.experiment.map_name}"]["sequences"]
+        else:
+            log.error(f"Could not find config for environment '{self.experiment.map_name}'. "
+                      f"Please specify a correct map name and try again.\n "
+                      f"The supported map names are: {environments.keys()}")
 
 
 class PlottingParametersBase(ParameterGroup):

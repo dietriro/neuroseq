@@ -1,0 +1,14 @@
+map_ambiguous_01:
+  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
+map_ambiguous_01a:
+  sequences: [[A, B, C, D, E, F], [A, B, C, D, E, G], [A, B, C, D, H, I]]
+map_ambiguous_02:
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
+map_ambiguous_04:
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
+map_path-planning_02:
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
+map_ambiguous_03:
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
+map_path-planning_01:
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
