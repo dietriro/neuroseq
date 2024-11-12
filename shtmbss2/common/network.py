@@ -304,10 +304,10 @@ class SHTMBase(ABC):
         for i in range(self.p.network.num_symbols):
             for j in range(self.p.network.num_symbols):
                 if i == j:
-                    i_w += 1
                     continue
                 if exc_to_exc is not None:
                     weight = exc_to_exc[i_w]
+                    weight[np.isnan(weight)] = 0
                 elif not self.p.plasticity.enable_structured_stdp:
                     weight = np.random.uniform(self.p.plasticity.permanence_init_min * 0.01,
                                                self.p.plasticity.permanence_init_max * 0.01,
@@ -884,7 +884,7 @@ class SHTMTotal(SHTMBase, ABC):
             self.log_weights = range(self.p.network.num_symbols ** 2 - self.p.network.num_symbols)
 
     def init_connections(self, exc_to_exc=None, exc_to_inh=None, debug=False):
-        super().init_connections()
+        super().init_connections(exc_to_exc=exc_to_exc, exc_to_inh=exc_to_inh)
 
         self.con_plastic = list()
 
@@ -1390,13 +1390,16 @@ class SHTMTotal(SHTMBase, ABC):
                                                                instance_id=instance_id)
 
         shtm.init_neurons()
-        shtm.init_connections(debug=debug)
+        shtm.init_connections(exc_to_exc=data_weights["exc_to_exc"], exc_to_inh=data_weights["exc_to_inh"], debug=debug)
 
         for i_con_plastic in range(len(shtm.con_plastic)):
             for var_name, var_value in data_plasticity.items():
                 setattr(shtm.con_plastic[i_con_plastic], var_name, var_value[i_con_plastic])
 
         shtm.init_external_input()
+
+        # this network has been run before, so set run-state to true
+        shtm.run_state = True
 
         return shtm
 
