@@ -473,26 +473,33 @@ class SHTMBase(ABC):
                         if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
                             delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
                             # The value 56 is suited for theta_dAP = 59 and v_thresh = 6.5
-                            if np.any((delta_t < 56) & (delta_t > 4)):
+                            if np.any((delta_t < 60) & (delta_t > 4)):
                                 log.info(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
                                 trace_offset = self.p.replay.scaling_trace
                                 num_active_cons += 1
                                 break
                 con_id += 1
 
-            # calculate a value representing the difference between the number of active neurons and the set threshold
-            target_perc = self.p.network.pattern_size / self.p.network.num_neurons
-            perc_act_neurons = num_active_neurons / self.p.network.num_neurons
-
-            if perc_act_neurons >= target_perc:
-                target_offset = np.e ** (-8 * (perc_act_neurons - target_perc)) * self.p.replay.max_scaling_loc
-            else:
-                target_offset = np.e ** (20 * (perc_act_neurons - target_perc)) * self.p.replay.max_scaling_loc
-
-            log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
 
             V_th = self.neurons_exc[i_sym].get("V_th")
-            V_th_new = V_th * trace_offset - V_th * target_offset
+            V_th_new = V_th * trace_offset
+
+            if self.target is None:
+                # calculate a value representing the difference between the number of active neurons
+                # and the set threshold
+                ambig_perc = self.p.network.pattern_size / self.p.network.num_neurons
+                perc_act_neurons = num_active_neurons / self.p.network.num_neurons
+
+                if perc_act_neurons >= ambig_perc:
+                    ambig_offset = np.e ** (-8 * (perc_act_neurons - ambig_perc)) * self.p.replay.max_scaling_loc
+                else:
+                    ambig_offset = np.e ** (20 * (perc_act_neurons - ambig_perc)) * self.p.replay.max_scaling_loc
+
+                V_th_new *= (1 - ambig_offset)
+
+                log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  "
+                          f"target_offset' = {ambig_offset}")
+
             self.neurons_exc[i_sym].set(V_th=V_th_new)
             if V_th != V_th_new:
                 log.debug(f"[{id_to_symbol(i_sym)}]  V_th = {V_th},  V_th' = {V_th_new}")
