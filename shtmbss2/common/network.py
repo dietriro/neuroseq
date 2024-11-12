@@ -768,6 +768,9 @@ class SHTMBase(ABC):
                 for k_soma, soma_k in enumerate(soma_times[i_soma + 1:]):
                     if soma_k[1] != dend_i[1]:
                         continue
+                    # ToDO: remove once self connections have been established
+                    if soma_i[1] == soma_k[1]:
+                        continue
                     if not 4 < soma_k[0] - dend_i[0] < self.p.neurons.dendrite.tau_dAP:
                         break
                     # get weights for connection from soma_i to soma_i+1
