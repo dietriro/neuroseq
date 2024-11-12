@@ -333,7 +333,7 @@ class PerformanceSingle(Performance):
                 # learning not finished yet
                 performance[f"num-epochs"] = -1
             else:
-                performance[f"num-epochs"] = len(error_max_reverse) - first_zero_id
+                performance[f"num-epochs"] = len(error_max_reverse) - first_zero_id + 1
             # add data from all metrics
             for metric_name in PerformanceMetrics.get_all():
                 metric = self.get_all(metric_name)
