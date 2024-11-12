@@ -283,6 +283,9 @@ class NetworkParameterGroups:
             self.v_thresh: float = None
             self.theta_dAP: float = None
             self.weight_factor_exc_inh: float = None
+            self.scaling_trace: float = None
+            self.scaling_target: float = None
+            self.max_scaling_loc: float = None
 
     class Neurons(ParameterGroup):
         def __init__(self):

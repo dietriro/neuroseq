@@ -418,7 +418,7 @@ class SHTMBase(ABC):
         # update neuron parameters
         for i_sym in range(len(self.neurons_exc)):
             if target is not None and target == i_sym:
-                v_thresh_tmp = v_thresh * 0.8
+                v_thresh_tmp = v_thresh * self.p.replay.scaling_target
             else:
                 v_thresh_tmp = v_thresh
             self.neurons_exc[i_sym].set(V_th=v_thresh_tmp,
@@ -475,20 +475,19 @@ class SHTMBase(ABC):
                             # The value 56 is suited for theta_dAP = 59 and v_thresh = 6.5
                             if np.any((delta_t < 56) & (delta_t > 4)):
                                 log.info(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
-                                trace_offset = 0.9
+                                trace_offset = self.p.replay.scaling_trace
                                 num_active_cons += 1
                                 break
                 con_id += 1
 
             # calculate a value representing the difference between the number of active neurons and the set threshold
-            max_target_offset = 0.15
             target_perc = self.p.network.pattern_size / self.p.network.num_neurons
             perc_act_neurons = num_active_neurons / self.p.network.num_neurons
 
             if perc_act_neurons >= target_perc:
-                target_offset = np.e ** (-8 * (perc_act_neurons - target_perc)) * max_target_offset
+                target_offset = np.e ** (-8 * (perc_act_neurons - target_perc)) * self.p.replay.max_scaling_loc
             else:
-                target_offset = np.e ** (20 * (perc_act_neurons - target_perc)) * max_target_offset
+                target_offset = np.e ** (20 * (perc_act_neurons - target_perc)) * self.p.replay.max_scaling_loc
 
             log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  target_offset' = {target_offset}")
 

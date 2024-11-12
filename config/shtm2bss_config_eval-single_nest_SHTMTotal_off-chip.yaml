@@ -76,6 +76,9 @@ replay:
 #  v_thresh: 5
 #  theta_dAP: 41.3
 #  weight_factor_exc_inh: 1
+  scaling_trace: 0.9
+  scaling_target: 0.9
+  max_scaling_loc: 0.15
 neurons:
   inhibitory:
     c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000
