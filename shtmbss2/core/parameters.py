@@ -150,8 +150,16 @@ class NetworkParameters(Parameters):
     def load_default_params(self, custom_params=None):
         super().load_default_params(custom_params=custom_params)
 
+        # load sequences from config file if not set manually
         if self.experiment.sequences is None:
             self.load_sequences_from_config()
+
+        # set number of symbols dynamically if not set manually
+        if self.network.num_symbols is None:
+            max_symbol = ''
+            for seq_i in self.experiment.sequences:
+                max_symbol = max(seq_i + [max_symbol])
+            self.network.num_symbols = SYMBOLS[max_symbol] + 1
 
     def load_sequences_from_config(self):
         environments = load_yaml(PATH_CONFIG, f"{RuntimeConfig.config_prefix}_environments.yaml")
