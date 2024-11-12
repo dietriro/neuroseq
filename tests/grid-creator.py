@@ -118,6 +118,10 @@ class GridCreator:
         self.assign_button = ttk.Button(self.root, text="Assign Unique Values", command=self.assign_unique_values)
         self.assign_button.grid(column=2, row=3, sticky="nsew", padx=5, pady=5)
 
+        # slider for updating the scale of the grid
+        self.resize_slider = ttk.Scale(self.root, from_=0, to=2, value=1, orient=tk.HORIZONTAL,
+                                       command=self.resize_grid)
+        self.resize_slider.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
 
         # Buttons for loading/saving map
         map_files = [map_file for map_file in os.listdir(PATH_MAPS) if map_file.endswith('.csv')]
@@ -143,6 +147,12 @@ class GridCreator:
         self.prev_col = None
         self.prev_label = None
 
+        self.label_size = (10, 6)
+        self.label_size_scale = 1.0
+
+    def get_label_size(self, dim):
+        return int(np.round(self.label_size[dim] * self.label_size_scale))
+
     def create_cell(self, x, y, cell_color=None):
         if cell_color is None:
             if self.grid_values[x, y] >= 1:
@@ -152,7 +162,8 @@ class GridCreator:
             else:
                 cell_color = "grey"
 
-        label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=10, height=6, bg=cell_color)
+        label = tk.Label(self.grid_frame, text="", relief=tk.RIDGE, width=self.get_label_size(0),
+                         height=self.get_label_size(1), bg=cell_color)
         label.grid(row=x, column=y, padx=1, pady=1)
         label.bind("<Button-1>", lambda event, row=x, col=y: self.on_cell_click(event, row, col))
         label.bind("<Button-3>", lambda event, row=x, col=y: self.on_cell_click(event, row, col, right=True))
@@ -341,6 +352,13 @@ class GridCreator:
 
         except ValueError:
             messagebox.showerror("Error", "Please enter valid integers for x and y.")
+
+    def resize_grid(self, scale):
+        self.label_size_scale = float(scale)
+        for labels_i in self.labels:
+            for label_i in labels_i:
+                label_i.config(width=self.get_label_size(0),
+                               height=self.get_label_size(1))
 
     def on_release(self, event):
         self.is_mouse_pressed = False
