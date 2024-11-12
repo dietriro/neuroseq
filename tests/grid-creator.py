@@ -314,7 +314,7 @@ class GridCreator:
 
             # Initialize grid_values and labels lists
             if grid_values is None:
-                self.grid_values = np.zeros((x, y), dtype=int)
+                self.grid_values = np.zeros((x, y), dtype=np.int8)
             else:
                 self.grid_values = grid_values
             self.labels = [[None for _ in range(y)] for _ in range(x)]
@@ -333,7 +333,7 @@ class GridCreator:
                     # Store label in 2D list
                     self.labels[i][j] = label
                     if self.grid_values[i][j] > 1:
-                        self.labels[i][j].config(text=str(self.grid_values[i][j]))
+                        self.labels[i][j].config(text=chr(self.grid_values[i][j] + 63))
 
             # Update the canvas scroll region
             self.canvas.update_idletasks()  # Ensure updates are applied before configuring scroll region
@@ -407,13 +407,11 @@ class GridCreator:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load map: {str(e)}")
 
-
     def cell_conversion(self, content):
         if content < 2:
             return content
 
         return chr(content+63)
-
 
     def save_as_csv(self):
         try:
@@ -471,7 +469,7 @@ class GridCreator:
                     continue
                 cell_value = self.grid_values[i, j]
                 cell_color = "white" if cell_value >= 1 else "grey"
-                self.labels[i][j].config(bg=cell_color, text=str(cell_value))
+                self.labels[i][j].config(bg=cell_color, text=chr(cell_value + 63))
 
         if x_max < len(self.grid_values):
             self.assign_unique_values(x_start=x_max + 1, assigned_values=assigned_values)
