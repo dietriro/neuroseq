@@ -269,8 +269,10 @@ class Performance(ABC):
 
         return axs
 
-    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
-        folder_path = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
+    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_map=None,
+                  experiment_subnum=None, instance_id=None):
+        folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                            experiment_map=experiment_map,
                                             experiment_subnum=experiment_subnum, instance_id=instance_id)
 
         file_path = join(folder_path, "performance.npz")
@@ -295,10 +297,11 @@ class PerformanceSingle(Performance):
         for metric_name in PerformanceMetrics.get_all():
             self.data[metric_name] = [[] for _ in self.p.experiment.sequences]
 
-    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
+    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_map=None,
+                  experiment_subnum=None, instance_id=None):
         self.init_data()
-        super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_subnum=experiment_subnum,
-                          instance_id=instance_id)
+        super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
+                          experiment_subnum=experiment_subnum, instance_id=instance_id)
 
     def get_statistic(self, statistic, metric, episode='all', percentile=None):
         if 'all' in episode:
@@ -412,11 +415,12 @@ class PerformanceMulti(Performance):
                 data_inst[metric_name] = [[] for _ in self.p.experiment.sequences]
             self.data.append(data_inst)
 
-    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
+    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_map=None,
+                  experiment_subnum=None, instance_id=None):
         self.init_data()
 
-        folder_path = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
-                                            experiment_subnum=experiment_subnum)
+        folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                            experiment_map=experiment_map, experiment_subnum=experiment_subnum)
 
         for i_inst in range(self.num_instances):
             inst_folder_name = f"{i_inst:02d}"
@@ -425,8 +429,8 @@ class PerformanceMulti(Performance):
             if not os.path.exists(inst_folder_path):
                 raise FileNotFoundError(f"Instance folder does not exist: {inst_folder_path}")
 
-            super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_subnum=experiment_subnum,
-                              instance_id=i_inst)
+            super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
+                              experiment_subnum=experiment_subnum, instance_id=i_inst)
 
     def get_statistic(self, statistic, metric, episode='all', percentile=None):
         if 'all' in episode:

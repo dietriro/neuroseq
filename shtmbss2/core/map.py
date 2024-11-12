@@ -285,8 +285,8 @@ class Map:
             if experiment_num is None:
                 experiment_num = (get_last_experiment_num(network, network.p.experiment.id, network.p.experiment.type)
                                   + 1)
-            experiment_folder = get_experiment_folder(network, network.p.experiment.type, network.p.experiment.id,
-                                                      experiment_num)
+            experiment_folder = get_experiment_folder(network.p.experiment.type, network.p.experiment.id,
+                                                      experiment_num, experiment_map=network.p.experiment.map_name)
 
             if not os.path.exists(experiment_folder):
                 os.makedirs(experiment_folder)

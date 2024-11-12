@@ -79,15 +79,15 @@ class Parameters(ParameterGroup):
         if custom_params is not None:
             self.set_custom_params(custom_params)
 
-    def load_experiment_params(self, experiment_type, experiment_id, experiment_num, experiment_subnum=None,
-                               instance_id=None, custom_params=None):
+    def load_experiment_params(self, experiment_type, experiment_id, experiment_num, experiment_map,
+                               experiment_subnum=None, instance_id=None, custom_params=None):
         if ((experiment_type == ExperimentType.EVAL_MULTI or experiment_type == ExperimentType.OPT_GRID_MULTI)
                 and instance_id is None):
             instance_id = 0
 
-        experiment_folder_path = get_experiment_folder(self.network_type, experiment_type, experiment_id,
-                                                       experiment_num, experiment_subnum=experiment_subnum,
-                                                       instance_id=instance_id)
+        experiment_folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                                       experiment_map=experiment_map,
+                                                       experiment_subnum=experiment_subnum, instance_id=instance_id)
 
         saved_params = load_yaml(experiment_folder_path, f"config_{self.config_type}.yaml")
 

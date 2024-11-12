@@ -1244,7 +1244,8 @@ class SHTMTotal(SHTMBase, ABC):
                     setattr(self.con_plastic[new_con_plastic.id], obj_name, getattr(new_con_plastic, obj_name))
 
     def save_config(self):
-        folder_path = get_experiment_folder(self, self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+        folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                            experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
         file_path = join(folder_path, f"config_network.yaml")
 
@@ -1252,7 +1253,8 @@ class SHTMTotal(SHTMBase, ABC):
             yaml.dump(self.p.dict(exclude_none=True), file)
 
     def save_performance_data(self):
-        folder_path = get_experiment_folder(self, self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+        folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                            experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
         file_path = join(folder_path, "performance")
 
@@ -1260,7 +1262,8 @@ class SHTMTotal(SHTMBase, ABC):
 
     def save_network_data(self):
         # ToDo: Check if this works with bss2
-        folder_path = get_experiment_folder(self, self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+        folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                            experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
 
         # Save weights
@@ -1328,12 +1331,15 @@ class SHTMTotal(SHTMBase, ABC):
         self.save_config()
         self.save_performance_data()
         self.save_network_data()
-        self.map.plot_graph_history(self, arrows=True, save_plot=True, show_plot=False)
+        self.map.plot_graph_history(self, experiment_num=self.experiment_num, arrows=True, save_plot=True,
+                                    show_plot=False)
 
-    def load_network_data(self, experiment_type, experiment_num, experiment_subnum=None, instance_id=None):
+    def load_network_data(self, experiment_type, experiment_num, experiment_map=None, experiment_subnum=None,
+                          instance_id=None):
         # ToDo: Check if this works with bss2
-        folder_path = get_experiment_folder(self, experiment_type, self.p.experiment.id, experiment_num,
-                                            experiment_subnum=experiment_subnum, instance_id=instance_id)
+        folder_path = get_experiment_folder(experiment_type, self.p.experiment.id, experiment_num,
+                                            experiment_map=experiment_map, experiment_subnum=experiment_subnum,
+                                            instance_id=instance_id)
 
         # Load weights
         file_path = join(folder_path, "weights.npz")
@@ -1361,23 +1367,25 @@ class SHTMTotal(SHTMBase, ABC):
         return data_weights, data_plasticity
 
     @staticmethod
-    def load_full_state(network_type, experiment_id, experiment_num, experiment_type=ExperimentType.EVAL_SINGLE,
+    def load_full_state(network_type, experiment_id, experiment_num, experiment_map=None,
+                        experiment_type=ExperimentType.EVAL_SINGLE,
                         experiment_subnum=None, instance_id=None, debug=False):
         log.debug("Loading full state of network and experiment.")
 
         p = NetworkParameters(network_type=network_type)
         p.load_experiment_params(experiment_type=experiment_type, experiment_id=experiment_id,
-                                 experiment_num=experiment_num, experiment_subnum=experiment_subnum,
-                                 instance_id=instance_id)
+                                 experiment_map=experiment_map, experiment_num=experiment_num,
+                                 experiment_subnum=experiment_subnum, instance_id=instance_id)
 
         shtm = network_type(p=p)
 
         shtm.p_plot = PlottingParameters(network_type=network_type)
         shtm.p_plot.load_default_params()
 
-        shtm.performance.load_data(shtm, experiment_type, experiment_id, experiment_num,
+        shtm.performance.load_data(shtm, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
                                    experiment_subnum=experiment_subnum, instance_id=instance_id)
         data_weights, data_plasticity = shtm.load_network_data(experiment_type, experiment_num,
+                                                               experiment_map=experiment_map,
                                                                experiment_subnum=experiment_subnum,
                                                                instance_id=instance_id)
 
