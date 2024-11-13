@@ -176,6 +176,7 @@ class PlottingParametersBase(ParameterGroup):
     def __init__(self):
         self.fontsize = PlottingParameterGroups.Fontsize()
         self.padding = PlottingParameterGroups.Padding()
+        self.location = PlottingParameterGroups.Location()
 
         self.size: list = None
         self.dpi: int = None
@@ -184,8 +185,8 @@ class PlottingParametersBase(ParameterGroup):
 
 class PlottingParameters(Parameters):
     def __init__(self, network_type):
-        self.performance = PlottingParameterGroups.Performance()
-        self.events = PlottingParameterGroups.Events()
+        self.performance = PlottingParameterBases.Performance()
+        self.events = PlottingParameterBases.Events()
 
         super().__init__(network_type)
 
@@ -370,7 +371,7 @@ class NetworkParameterGroups:
 
 
 ### Plotting Parameters ###
-class PlottingParameterGroups:
+class PlottingParameterBases:
     class Performance(PlottingParametersBase):
         def __init__(self):
             super().__init__()
@@ -378,7 +379,10 @@ class PlottingParameterGroups:
     class Events(PlottingParametersBase):
         def __init__(self):
             super().__init__()
+            self.events = PlottingParameterGroups.Events()
 
+
+class PlottingParameterGroups:
     class Fontsize(ParameterGroup):
         def __init__(self):
             self.title: int = None
@@ -397,3 +401,13 @@ class PlottingParameterGroups:
             self.right: float = None
             self.top: float = None
             self.bottom: float = None
+
+    class Location(ParameterGroup):
+        def __init__(self):
+            self.legend_x: float = None
+            self.legend_y: float = None
+
+    class Events(ParameterGroup):
+        def __init__(self):
+            self.height: float = None
+            self.width: float = None

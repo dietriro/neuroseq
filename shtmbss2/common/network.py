@@ -6,6 +6,7 @@ import yaml
 import sys
 import multiprocessing as mp
 import itertools as it
+import glob
 
 from types import ModuleType, FunctionType
 from gc import get_referents
@@ -536,6 +537,8 @@ class SHTMBase(ABC):
             if len(events[i]) > 0:
                 if type(events[i]) == np.ndarray:
                     events[i] += offset
+                elif type(events[i]) == list:
+                    events[i] = [event + offset for event in events[i]]
                 else:
                     events[i] += offset * events[i].units
         return events
@@ -633,18 +636,19 @@ class SHTMBase(ABC):
                                               seq_start=seq_start + spike_offset, seq_end=seq_end + spike_offset,
                                               epoch_end=x_lim_upper, plot_trace=plot_dendritic_trace)
                     else:
-                        line_widths = 1.5
-                        line_lengths = 1
-
-                        ax.eventplot(spikes, linewidths=line_widths, linelengths=line_lengths,
+                        ax.eventplot(spikes, linewidths=self.p_plot.events.events.width,
+                                     linelengths=self.p_plot.events.events.height,
                                      label=neurons_i.get_name_print(), color=f"C{neurons_i.COLOR_ID}")
 
                 # plot external spikes as reference lines
                 # for i_sym in range(self.p.network.num_symbols):
                 if self.p.network.ext_indiv:
-                    spikes_ext_i = self.spike_times_ext_indiv[i_symbol]
+                    spikes_ext_i = deepcopy(self.spike_times_ext_indiv[i_symbol])
                     spikes_ext_i.insert(0, [])
-                    ax.eventplot(spikes_ext_i, linewidths=1.5, linelengths=1, label="External", color=f"grey")
+                    if spike_offset > 0:
+                        spikes_ext_i = self.add_offset_to_events(spikes_ext_i, spike_offset)
+                    ax.eventplot(spikes_ext_i, linewidths=self.p_plot.events.events.width,
+                                 linelengths=self.p_plot.events.events.height, label="External", color=f"grey")
                 else:
                     for spike_time_ext_sym_i in self.spike_times_ext[i_symbol]:
                         ax.plot([spike_time_ext_sym_i, spike_time_ext_sym_i], [0.6, self.p.network.num_neurons + 0.4],
@@ -661,20 +665,23 @@ class SHTMBase(ABC):
 
                     # set ticks for y-axis only if enabled
                     if enable_y_ticks:
-                        ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2
-                                                 + int(self.network_state == NetworkState.REPLAY)))
-                        # Generate y-tick-labels based on number of neurons per symbol
-                        y_tick_labels = ['Inh', '', '0'] + ['' for _ in range(self.p.network.num_neurons - 2)] + [
-                            str(self.p.network.num_neurons - 1)]
-                        if self.network_state == NetworkState.REPLAY:
-                            y_tick_labels += ['Inh-G']
-                        ax.set_yticklabels(y_tick_labels, rotation=45, fontsize=self.p_plot.events.fontsize.tick_labels)
+                        if self.network_state == NetworkState.REPLAY and separate_seqs:
+                            ax.tick_params(axis='y', labelsize=self.p_plot.events.fontsize.tick_labels)
+                        else:
+                            ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2
+                                                     + int(self.network_state == NetworkState.REPLAY)))
+                            # Generate y-tick-labels based on number of neurons per symbol
+                            y_tick_labels = ['Inh', '', '0'] + ['' for _ in range(self.p.network.num_neurons - 2)] + [
+                                str(self.p.network.num_neurons - 1)]
+                            if self.network_state == NetworkState.REPLAY:
+                                y_tick_labels += ['Inh-G']
+                            ax.set_yticklabels(y_tick_labels, rotation=45,
+                                               fontsize=self.p_plot.events.fontsize.tick_labels)
                     else:
                         # for major ticks
-                        ax.set_xticks([])
+                        ax.set_yticks([])
                         # for minor ticks
-                        ax.set_xticks([], minor=True)
-                        # ax.tick_params(axis='y', labelsize=self.p_plot.events.fontsize.tick_labels)
+                        ax.set_yticks([], minor=True)
 
                 if show_grid:
                     ax.grid(True, which='both', axis='both')
@@ -704,8 +711,9 @@ class SHTMBase(ABC):
                         for n in neuron_types]
         custom_lines.append(Line2D([0], [0], color=f"grey", label="External", lw=3))
 
-        plt.figlegend(handles=custom_lines, loc=(0.715, 0.904), ncol=2, labelspacing=0.2,
-                      fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
+        plt.figlegend(handles=custom_lines,
+                      loc=(self.p_plot.events.location.legend_x, self.p_plot.events.location.legend_y),
+                      ncol=2, labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
                       borderaxespad=4)
 
         fig.text(0.05, 0.5, "Symbol & Neuron ID", va="center", rotation="vertical",
@@ -1372,6 +1380,41 @@ class SHTMTotal(SHTMBase, ABC):
 
         np.savez(file_path, **plasticity_dict)
 
+    def save_plot_events(self, neuron_types="all", symbols="all", size=None, x_lim_lower=None, x_lim_upper=None,
+                         seq_start=0, seq_end=None, fig_title="", run_id=None, show_grid=False,
+                         separate_seqs=False, replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True,
+                         x_tick_step=None):
+        # set plot_name and retrieve experiment folder given the current config
+        plot_name = f"plot_events_{self.network_state.lower()}"
+        exp_folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                                experiment_map=self.p.experiment.map_name,
+                                                experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
+
+        # load all file/folder names that match pattern of plot_name in exp_folder_path
+        files = glob.glob(f"{exp_folder_path}/{plot_name}*")
+
+        # find last plot file, i.e. with highest id in the files list
+        last_plot_id = 0
+        for file_i in files:
+            plot_id_i = int(os.path.basename(file_i).split('_')[-1].split('.')[0])
+            if plot_id_i > last_plot_id:
+                last_plot_id = plot_id_i
+        last_plot_id += 1
+
+        # generate new plot name and path based on the calculated id
+        plot_name = f"{plot_name}_{last_plot_id:02d}"
+        plot_path = join(exp_folder_path, plot_name)
+
+        # plot events and save the plot to the given path
+        self.plot_events(neuron_types=neuron_types, symbols=symbols, size=size, x_lim_lower=x_lim_lower,
+                         x_lim_upper=x_lim_upper, seq_start=seq_start, seq_end=seq_end, fig_title=fig_title,
+                         run_id=run_id, show_grid=show_grid, separate_seqs=separate_seqs, replay_runtime=replay_runtime,
+                         plot_dendritic_trace=plot_dendritic_trace, enable_y_ticks=enable_y_ticks,
+                         x_tick_step=x_tick_step, file_path=plot_path
+                         )
+
+        return files
+
     def save_full_state(self, running_avg_perc=0.5, optimized_parameter_ranges=None, save_setup=False):
         log.debug("Saving full state of network and experiment.")
 
@@ -1469,6 +1512,9 @@ class SHTMTotal(SHTMBase, ABC):
 
         # this network has been run before, so set run-state to true
         shtm.run_state = True
+
+        # set experiment number to given number
+        shtm.experiment_num = experiment_num
 
         return shtm
 
@@ -1827,7 +1873,7 @@ class Plasticity(ABC):
                     weight[j, i] = permanence * 0.01
                 else:
                     weight_offset = (
-                                                permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
+                                            permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
                     weight[j, i] = self.w_mature + weight_offset
                 if self.proj_post_soma_inh is not None:
                     weight_inh = self.proj_post_soma_inh.get("weight", format="array")

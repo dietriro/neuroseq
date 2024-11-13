@@ -24,6 +24,12 @@ events:
     axis_labels: 26
     subplot_labels: 20
     tick_labels: 18
+  location:
+    legend_x: 0.545
+    legend_y: 0.890
   padding:
     x_axis: 14
-    w_space: 0.04
+    w_space: 0.1
+  events:
+    height: 1.0
+    width: 1.5
