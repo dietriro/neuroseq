@@ -1,4 +1,5 @@
 from inspect import isclass
+from abc import ABC
 
 import shtmbss2
 import logging
@@ -15,23 +16,33 @@ os.environ["HWLOC_COMPONENTS"] = "-gl"
 PY_PKG_PATH = split(dirname(shtmbss2.__file__))[0]
 
 
+class NeuronTypeABC(ABC):
+    ID: int = None
+    NAME: str = None
+    COLOR_ID: int = None
+
+    @classmethod
+    def get_name_print(cls):
+        return cls.NAME.replace("_", " ").title()
+
+
 class NeuronType:
-    class Dendrite:
+    class Dendrite(NeuronTypeABC):
         ID = 0
         NAME = "dendrite"
         COLOR_ID = 0
 
-    class Soma:
+    class Soma(NeuronTypeABC):
         ID = 1
         NAME = "soma"
         COLOR_ID = 1
 
-    class Inhibitory:
+    class Inhibitory(NeuronTypeABC):
         ID = 2
         NAME = "inhibitory"
         COLOR_ID = 2
 
-    class InhibitoryGlobal:
+    class InhibitoryGlobal(NeuronTypeABC):
         ID = 3
         NAME = "inhibitory_global"
         COLOR_ID = 3
