@@ -1512,13 +1512,14 @@ class SHTMTotal(SHTMBase, ABC):
     @staticmethod
     def load_full_state(network_type, experiment_id, experiment_num, experiment_map=None,
                         experiment_type=ExperimentType.EVAL_SINGLE,
-                        experiment_subnum=None, instance_id=None, debug=False):
+                        experiment_subnum=None, instance_id=None, debug=False, custom_params=None):
         log.debug("Loading full state of network and experiment.")
 
         p = NetworkParameters(network_type=network_type)
         p.load_experiment_params(experiment_type=experiment_type, experiment_id=experiment_id,
                                  experiment_map=experiment_map, experiment_num=experiment_num,
-                                 experiment_subnum=experiment_subnum, instance_id=instance_id)
+                                 experiment_subnum=experiment_subnum, instance_id=instance_id,
+                                 custom_params=custom_params)
 
         shtm = network_type(p=p)
 
