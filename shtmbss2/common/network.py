@@ -735,12 +735,13 @@ class SHTMBase(ABC):
                  fontsize=self.p_plot.events.fontsize.axis_labels)
 
         fig.suptitle(fig_title, x=0.39, y=0.95, fontsize=self.p_plot.events.fontsize.title)
-        fig.show()
 
         if file_path is not None:
             plt.savefig(f"{file_path}.pdf")
 
             pickle.dump(fig, open(f'{file_path}.fig.pickle', 'wb'))
+        else:
+            fig.show()
 
     def plot_v_exc(self, alphabet_range, neuron_range='all', size=None, neuron_type=NeuronType.Soma, runtime=None,
                    show_legend=False, file_path=None):
