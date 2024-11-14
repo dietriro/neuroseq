@@ -253,13 +253,25 @@ class SHTMBase(ABC):
 
                     if self.p.network.ext_indiv:
                         if i_element == 0:
-                            neuron_range = range(starting_symbols[element] * self.p.network.pattern_size,
-                                                 (starting_symbols[element] + 1) * self.p.network.pattern_size)
+                            range_start = starting_symbols[element] * self.p.network.pattern_size
+                            range_end = (starting_symbols[element] + 1) * self.p.network.pattern_size
+
+                            if range_start > self.p.network.num_neurons or range_end > self.p.network.num_neurons:
+                                log.error(f"Neuron range for ext_indiv [{range_start}, {range_end}] is out of bounds"
+                                          f"for num_neurons={self.p.network.num_neurons}.")
+                                raise Exception(f"Neuron range for ext_indiv [{range_start}, {range_end}] is out of "
+                                                f"bounds for num_neurons={self.p.network.num_neurons}.")
+
+                            neuron_range = range(range_start, range_end)
                             starting_symbols[element] += 1
                         else:
                             neuron_range = range(self.p.network.num_neurons)
                         for i_neuron in neuron_range:
-                            spike_times[SYMBOLS[element]][i_neuron].append(spike_time)
+                            if 0 <= i_neuron < self.p.network.num_neurons:
+                                spike_times[SYMBOLS[element]][i_neuron].append(spike_time)
+                            else:
+                                log.warning(f"Tried to create spike times for neuron id [{i_neuron}], which is out of "
+                                            f"range for num_neurons={self.p.network.num_neurons}. Skipping spike.")
                     else:
                         spike_times[SYMBOLS[element]].append(spike_time)
                     spike_times_sym[SYMBOLS[element]].append(spike_time)
