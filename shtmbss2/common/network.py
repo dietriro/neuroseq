@@ -591,6 +591,7 @@ class SHTMBase(ABC):
             seq_end = seq_start + self.p.experiment.runtime
 
         ax = None
+        y_label = "no-data"
 
         for i_seq in range(n_cols):
             spike_offset = 0
@@ -665,6 +666,7 @@ class SHTMBase(ABC):
 
                     # set ticks for y-axis only if enabled
                     if enable_y_ticks:
+                        y_label = "Symbol & Neuron ID"
                         if self.network_state == NetworkState.REPLAY and separate_seqs:
                             ax.tick_params(axis='y', labelsize=self.p_plot.events.fontsize.tick_labels)
                         else:
@@ -678,6 +680,7 @@ class SHTMBase(ABC):
                             ax.set_yticklabels(y_tick_labels, rotation=45,
                                                fontsize=self.p_plot.events.fontsize.tick_labels)
                     else:
+                        y_label = "Neuronal Subpopulations (Locations)"
                         # for major ticks
                         ax.set_yticks([])
                         # for minor ticks
@@ -716,7 +719,7 @@ class SHTMBase(ABC):
                       ncol=2, labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
                       borderaxespad=4)
 
-        fig.text(0.05, 0.5, "Symbol & Neuron ID", va="center", rotation="vertical",
+        fig.text(0.05, 0.5, y_label, va="center", rotation="vertical",
                  fontsize=self.p_plot.events.fontsize.axis_labels)
 
         fig.suptitle(fig_title, x=0.39, y=0.95, fontsize=self.p_plot.events.fontsize.title)
