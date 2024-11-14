@@ -26,7 +26,7 @@ from shtmbss2.core.helpers import (Process, symbol_from_label, id_to_symbol, cal
 from shtmbss2.common.config import NeuronType, RecTypes
 from shtmbss2.common.plot import plot_dendritic_events
 from shtmbss2.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
-from shtmbss2.core.map import Map
+from shtmbss2.core.map import Map, LabelTypes
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
     import pynn_brainscales.brainscales2 as pynn
@@ -925,6 +925,16 @@ class SHTMBase(ABC):
 
         return num_events
 
+    def print_thresholds(self, symbols=None):
+        if symbols is None:
+            symbols = list(range(self.p.network.num_symbols))
+        print("Membrane thresholds:")
+        for sym_i in symbols:
+            if type(sym_i) is str:
+                sym_i = SYMBOLS[sym_i]
+
+            print(f"{id_to_symbol(sym_i)}: {self.neurons_exc[sym_i].get('V_th')}")
+
     def __str__(self):
         return type(self).__name__
 
@@ -1414,6 +1424,12 @@ class SHTMTotal(SHTMBase, ABC):
                          )
 
         return files
+
+    def save_plot_graph(self, history_range=None, fps=1, only_traversable=True, arrows=True,
+                        label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False):
+        self.map.plot_graph_history(self, history_range=history_range, fps=fps, only_traversable=only_traversable,
+                                    arrows=arrows, label_type=label_type, empty_label=empty_label, title=title,
+                                    show_plot=show_plot, experiment_num=self.experiment_num, save_plot=True)
 
     def save_full_state(self, running_avg_perc=0.5, optimized_parameter_ranges=None, save_setup=False):
         log.debug("Saving full state of network and experiment.")
