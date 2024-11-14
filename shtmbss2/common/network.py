@@ -490,7 +490,7 @@ class SHTMBase(ABC):
                         if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
                             delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
                             # The value 56 is suited for theta_dAP = 59 and v_thresh = 6.5
-                            if np.any((delta_t < 60) & (delta_t > 4)):
+                            if np.any((delta_t < self.p.replay.threshold_delta_t_up) & (delta_t > 4)):
                                 log.info(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
                                 trace_offset = self.p.replay.scaling_trace
                                 num_active_cons += 1
@@ -1437,8 +1437,6 @@ class SHTMTotal(SHTMBase, ABC):
                          plot_dendritic_trace=plot_dendritic_trace, enable_y_ticks=enable_y_ticks,
                          x_tick_step=x_tick_step, file_path=plot_path
                          )
-
-        return files
 
     def save_plot_graph(self, history_range=None, fps=1, only_traversable=True, arrows=True,
                         label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False):

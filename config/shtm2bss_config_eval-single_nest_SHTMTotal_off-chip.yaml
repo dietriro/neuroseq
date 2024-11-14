@@ -26,7 +26,7 @@ performance:
   method: "all_symbols"
   running_avgs: [ 0.25, 0.5, 0.75, 1.0 ]
 network:
-  num_symbols: 7
+  num_symbols: null  # 18
   replay_mode: "parallel"
   num_neurons: 15
   pattern_size: 3
@@ -79,6 +79,7 @@ replay:
   scaling_trace: 0.9
   scaling_target: 0.9
   max_scaling_loc: 0.15
+  threshold_delta_t_up: 55
 neurons:
   inhibitory:
     c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000

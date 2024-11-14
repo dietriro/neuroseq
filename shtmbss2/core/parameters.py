@@ -287,6 +287,7 @@ class NetworkParameterGroups:
             self.scaling_trace: float = None
             self.scaling_target: float = None
             self.max_scaling_loc: float = None
+            self.threshold_delta_t_up: int = None
 
     class Neurons(ParameterGroup):
         def __init__(self):
