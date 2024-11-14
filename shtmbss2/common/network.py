@@ -489,6 +489,7 @@ class SHTMBase(ABC):
                     for k_neuron, spikes_k_k in enumerate(spikes_k):
                         if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
                             delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
+                            log.debug(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
                             # The value 56 is suited for theta_dAP = 59 and v_thresh = 6.5
                             if np.any((delta_t < self.p.replay.threshold_delta_t_up) & (delta_t > 4)):
                                 log.info(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
