@@ -1,0 +1,140 @@
+backend:
+  module_name: nestml_mc01_module
+  neuron_name: iaf_psc_exp_nonlineardendritemc01_nestml
+calibration: {}
+config_type: network
+encoding:
+  dt_seq: 100
+  dt_stm: 40
+  num_repetitions: 1
+  t_exc_start: 10
+  t_scaling_factor: 1.0
+experiment:
+  episodes: 50
+  generate_rand_seed_offset: false
+  id: eval
+  log_permanence: true
+  log_weights: true
+  map_name: ambiguous_02
+  opt_id: ''
+  run_add_calib: false
+  runtime: 840
+  save_auto: false
+  save_auto_epoches: 5
+  save_final: false
+  seed_offset: 5
+  sequences:
+  - - A
+    - B
+    - C
+    - D
+  - - A
+    - B
+    - C
+    - D
+  - - A
+    - B
+    - F
+  - - A
+    - B
+    - C
+    - E
+  type: eval-single
+network:
+  ext_indiv: true
+  num_neurons: 21
+  num_symbols: 6
+  pattern_size: 3
+  replay_mode: parallel
+neurons:
+  dendrite:
+    I_p: 200
+    tau_dAP: 60
+    theta_dAP: 59
+  excitatory:
+    c_m: 250
+    tau_m: 10
+    tau_refrac: 10
+    tau_syn_den: 5
+    tau_syn_ext: 2
+    tau_syn_inh: 1
+    v_reset: 0
+    v_rest: 0
+    v_thresh: 20
+  inhibitory:
+    c_m: 0.25
+    tau_m: 5
+    tau_refrac: 2
+    tau_syn_E: 0.5
+    tau_syn_I: 1.0
+    v_reset: 0
+    v_rest: 0
+    v_thresh: 15
+  inhibitory_global:
+    tau_refrac: 8
+performance:
+  compute_performance: true
+  method: all_symbols
+  running_avgs:
+  - 0.25
+  - 0.5
+  - 0.75
+  - 1.0
+plasticity:
+  correlation_threshold: 0.0005
+  delta_t_max: 75
+  delta_t_min: 4
+  dt: 0.1
+  enable_structured_stdp: true
+  homeostasis_depression_rate: 1.0
+  lambda_h: 0.014
+  lambda_minus: 0.0015
+  lambda_plus: 0.08
+  learning_factor: 1
+  num_coactive_neurons: 1
+  permanence_init_max: 8
+  permanence_init_min: 0
+  permanence_max: 20.0
+  permanence_threshold: 10.0
+  target_rate_h: 1.0
+  tau_h: 880
+  tau_plus: 20
+  type: original
+  w_mature: 0.06490000000000001
+  weight_learning: false
+  weight_learning_scale: 0.0026
+  y: 1
+plotting:
+  file_type: pdf
+  save_figure: true
+  size:
+  - 10
+  - 12
+replay:
+  max_scaling_loc: 0.3
+  scaling_target: 0.8
+  scaling_trace: 0.9
+  theta_dAP: 59
+  threshold_delta_t_up: 55
+  v_thresh: 6.5
+  weight_factor_exc_inh: 1
+synapses:
+  delay_exc_exc: 2
+  delay_exc_inh: 0.1
+  delay_ext_exc: 0.1
+  delay_inh_exc: 0.1
+  dyn_inh_weights: false
+  dyn_weight_calculation: true
+  j_exc_inh_psp: 6.0
+  j_ext_exc_psp: 22.0
+  j_inh_exc_psp: -40
+  p_exc_exc: 0.2
+  receptor_exc_exc: I_2
+  receptor_exc_inh: excitatory
+  receptor_ext_exc: I_1
+  receptor_inh_exc: I_3
+  w_exc_exc: 0.0
+  w_exc_inh: 3.8746489950446508
+  w_ext_exc: 4.112209148358357
+  w_inh_exc: 12.915496650148835
+use_on_chip_plasticity: false
