@@ -50,7 +50,7 @@ class GridSearch:
 
     def init_experiment_num(self):
         # retrieve experiment num for new experiment
-        last_experiment_num = get_last_experiment_num(self.model_type, self.experiment_id, self.experiment_type)
+        last_experiment_num = get_last_experiment_num(self.experiment_id, self.experiment_type, self.experiment_map)
         if self.experiment_num is None:
             self.experiment_num = last_experiment_num + 1
 

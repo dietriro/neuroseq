@@ -93,7 +93,7 @@ class ParallelExecutor:
 
         # retrieve experiment num for new experiment
         if self.experiment_num is None:
-            self.experiment_num = get_last_experiment_num(SHTMTotal, self.experiment_id, self.experiment_type) + 1
+            self.experiment_num = get_last_experiment_num(self.experiment_id, self.experiment_type, self.experiment_map) + 1
 
         if seed_offset is None:
             seed_offset = int(time.time())

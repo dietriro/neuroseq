@@ -283,8 +283,8 @@ class Map:
 
         if save_plot:
             if experiment_num is None:
-                experiment_num = (get_last_experiment_num(network, network.p.experiment.id, network.p.experiment.type)
-                                  + 1)
+                experiment_num = get_last_experiment_num(network.p.experiment.id, network.p.experiment.type,
+                                                         network.p.experiment.map_name) + 1
             experiment_folder = get_experiment_folder(network.p.experiment.type, network.p.experiment.id,
                                                       experiment_num, experiment_map=network.p.experiment.map_name)
 

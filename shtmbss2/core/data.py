@@ -12,6 +12,11 @@ from shtmbss2.common.config import *
 from shtmbss2.core.logging import log
 
 
+COL_EXPERIMENT_ID = 0
+COL_EXPERIMENT_MAP = 1
+COL_EXPERIMENT_NUM = 2
+
+
 def load_yaml(path_yaml, file_name_yaml):
     with open(join(path_yaml, file_name_yaml)) as file:
         try:
@@ -41,7 +46,7 @@ def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config
     return load_yaml(PATH_CONFIG, config_file_name)
 
 
-def get_last_experiment_num(net, experiment_id, experiment_type) -> int:
+def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None) -> int:
     file_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     if not exists(file_path):
@@ -52,8 +57,9 @@ def get_last_experiment_num(net, experiment_id, experiment_type) -> int:
         lines = list(csv_reader)
 
     for line in lines[::-1]:
-        if line[0] == experiment_id:
-            return int(line[1])
+        if line[COL_EXPERIMENT_ID] == experiment_id:
+            if experiment_map is None or (experiment_map is not None and line[COL_EXPERIMENT_MAP] == experiment_map):
+                return int(line[COL_EXPERIMENT_NUM])
 
     return 0
 
@@ -233,7 +239,7 @@ def save_instance_setup(parameters, performance, experiment_num=None, experiment
 
 
 def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, instance_id=None,
-                            optimized_parameter_ranges=None, **kwargs):
+                            optimized_parameter_ranges=None, experiment_map=None, **kwargs):
     params = flatten_dict(net.p.dict(exclude_none=True))
     params.pop("config_type")
     experiment_type = net.p.experiment.type
@@ -243,7 +249,7 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
 
     # add the experiment id and network type
     create_eval_file = not exists(file_path)
-    last_experiment_num = get_last_experiment_num(net, experiment_id, experiment_type)
+    last_experiment_num = get_last_experiment_num(experiment_id, experiment_type, experiment_map)
     do_update = False
     if experiment_num is None:
         experiment_num = last_experiment_num + 1
@@ -256,7 +262,7 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
 
     # create folder if it doesn't exist
     folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
-                                        experiment_map=net.p.experiment.map_name, experiment_subnum=experiment_subnum,
+                                        experiment_map=experiment_map, experiment_subnum=experiment_subnum,
                                         instance_id=None)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -264,7 +270,7 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
     # prepare data for saving
     if optimized_parameter_ranges is None:
         optimized_parameter_ranges = dict()
-    data = {'experiment_id': experiment_id, 'experiment_num': f'{experiment_num:02d}',
+    data = {'experiment_id': experiment_id, 'experiment_map': experiment_map, 'experiment_num': f'{experiment_num:02d}',
             'network_type': str(net), 'time_finished': datetime.datetime.now().strftime('%d.%m.%y - %H:%M')}
 
     data = {**data, **optimized_parameter_ranges, **params}

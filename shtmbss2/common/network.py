@@ -1427,7 +1427,8 @@ class SHTMTotal(SHTMBase, ABC):
                 self.experiment_num = save_experimental_setup(net=self, experiment_num=self.experiment_num,
                                                               experiment_subnum=self.experiment_subnum,
                                                               instance_id=self.instance_id,
-                                                              optimized_parameter_ranges=optimized_parameter_ranges)
+                                                              optimized_parameter_ranges=optimized_parameter_ranges,
+                                                              experiment_map=self.p.experiment.map_name)
             save_instance_setup(net=self.__str__(), parameters=self.p,
                                 performance=self.performance.get_performance_dict(final_result=True,
                                                                                   running_avgs=self.p.performance.running_avgs,
@@ -1438,7 +1439,8 @@ class SHTMTotal(SHTMBase, ABC):
         else:
             self.experiment_num = save_experimental_setup(net=self, experiment_num=self.experiment_num,
                                                           experiment_subnum=self.experiment_subnum,
-                                                          instance_id=self.instance_id)
+                                                          instance_id=self.instance_id,
+                                                          experiment_map=self.p.experiment.map_name)
 
         self.save_config()
         self.save_performance_data()
