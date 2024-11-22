@@ -402,11 +402,19 @@ class PlottingParameterGroups:
             self.right: float = None
             self.top: float = None
             self.bottom: float = None
+            self.subplot_title: float = None
+
 
     class Location(ParameterGroup):
         def __init__(self):
             self.legend_x: float = None
             self.legend_y: float = None
+            self.title_x: float = None
+            self.title_y: float = None
+            self.label_xaxis_x: float = None
+            self.label_xaxis_y: float = None
+            self.label_yaxis_x: float = None
+            self.label_yaxis_y: float = None
 
     class Events(ParameterGroup):
         def __init__(self):

@@ -25,11 +25,48 @@ events:
     subplot_labels: 20
     tick_labels: 18
   location:
-    legend_x: 0.545
-    legend_y: 0.890
+    legend_x: 0.08
+    legend_y: 0.01
+    title_x: 0.5
+    title_y: 0.96
+    label_xaxis_x: 0.5
+    label_xaxis_y: 0.09
+    label_yaxis_x: 0.05
+    label_yaxis_y: 0.5
   padding:
     x_axis: 14
     w_space: 0.1
+    subplot_title: 15
+    top: 0.85
+    bottom: 0.18
   events:
     height: 1.0
     width: 1.5
+#events:
+#  size: [24, 10]
+#  dpi: 150
+#  line_width: 3
+#  fontsize:
+#    title: 26
+#    legend: 18
+#    axis_labels: 26
+#    subplot_labels: 20
+#    tick_labels: 18
+#  location:
+#    legend_x: 0.08
+#    legend_y: 0.88
+#    title_x: 0.5
+#    title_y: 0.96
+#    label_xaxis_x: 0.5
+#    label_xaxis_y: 0.09
+#    label_yaxis_x: 0.05
+#    label_yaxis_y: 0.5
+#  padding:
+#    x_axis: 14
+#    w_space: 0.1
+#    subplot_title: 15
+#    top: 0.80
+#    bottom: 0.18
+#  events:
+#    height: 1.0
+#    width: 1.5

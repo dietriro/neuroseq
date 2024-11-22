@@ -709,6 +709,10 @@ class SHTMBase(ABC):
                         x_tick_step = self.p.encoding.dt_stm / 2
                     ax.xaxis.set_ticks(np.arange(x_lim_lower, x_lim_upper, x_tick_step))
 
+                if self.network_state == NetworkState.REPLAY and n_cols > 1 and i_symbol == 0:
+                    ax.set_title(f"Replay {i_seq + 1}", fontsize=self.p_plot.events.fontsize.subplot_labels,
+                                 pad=self.p_plot.events.padding.subplot_title)
+
             ax.tick_params(axis='x', labelsize=self.p_plot.events.fontsize.tick_labels)
 
             if self.network_state == NetworkState.REPLAY and n_cols > 1:
@@ -720,7 +724,8 @@ class SHTMBase(ABC):
         if n_cols > 1:
             plt.subplots_adjust(wspace=self.p_plot.events.padding.w_space)
 
-        fig.text(0.5, 0.01, "Time [ms]", ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
+        fig.text(self.p_plot.events.location.label_xaxis_x, self.p_plot.events.location.label_xaxis_y, "Time [ms]",
+                 ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
 
         # Create custom legend for all plots
         custom_lines = [Line2D([0], [0], color=f"C{n.COLOR_ID}", label=n.get_name_print(), lw=3)
@@ -729,16 +734,23 @@ class SHTMBase(ABC):
 
         plt.figlegend(handles=custom_lines,
                       loc=(self.p_plot.events.location.legend_x, self.p_plot.events.location.legend_y),
-                      ncol=2, labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
+                      ncol=5, labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
                       borderaxespad=4)
 
-        fig.text(0.05, 0.5, y_label, va="center", rotation="vertical",
-                 fontsize=self.p_plot.events.fontsize.axis_labels)
+        fig.text(self.p_plot.events.location.label_yaxis_x, self.p_plot.events.location.label_yaxis_y, y_label,
+                 va="center", rotation="vertical", fontsize=self.p_plot.events.fontsize.axis_labels)
 
-        fig.suptitle(fig_title, x=0.39, y=0.95, fontsize=self.p_plot.events.fontsize.title)
+        fig.suptitle(fig_title, x=self.p_plot.events.location.title_x, y=self.p_plot.events.location.title_y,
+                     fontsize=self.p_plot.events.fontsize.title)
+
+        plt.subplots_adjust(
+            bottom=self.p_plot.events.padding.bottom,
+            top=self.p_plot.events.padding.top,
+                            )
 
         if file_path is not None:
             plt.savefig(f"{file_path}.pdf")
+            plt.savefig(f"{file_path}.svg")
 
             pickle.dump(fig, open(f'{file_path}.fig.pickle', 'wb'))
         else:
