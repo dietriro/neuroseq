@@ -1,9 +1,10 @@
 experiment:
-  id: 'org_s2'
+  id: 'eval'
   opt_id: ''
-  sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
-  map_name: 'ambiguous_01'
-  sequences: [[A, B, C, D, E, F], [A, B, C, D, E, G], [A, B, C, D, H, I]]
+  map_name: 'ambiguous_03'
+#  map_name: 'path-planning_02'
+#  sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
+#  sequences: [[A, B, C], [D, C, B], [E, B, C]]
 #  sequences: [[A, D, B, E], [F, D, B, C]]
 #  sequences: [['E', 'N', 'D', 'I', 'J'], ['L', 'N', 'D', 'I', 'K'], ['G', 'J', 'M', 'C', 'N'], ['F', 'J', 'M', 'C', 'I'], ['B', 'C', 'K', 'H', 'I'], ['A', 'C', 'K', 'H', 'F']]
 #  sequences: [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']]
@@ -14,7 +15,7 @@ experiment:
   save_auto: False
   save_auto_epoches: 5
   generate_rand_seed_offset: False
-  seed_offset: null
+  seed_offset: 5
   log_weights: True
   log_permanence: True
 plotting:
@@ -28,7 +29,7 @@ performance:
 network:
   num_symbols: null  # 18
   replay_mode: "parallel"
-  num_neurons: 15
+  num_neurons: 21
   pattern_size: 3
   ext_indiv: True
 backend:
@@ -77,9 +78,9 @@ replay:
 #  theta_dAP: 41.3
 #  weight_factor_exc_inh: 1
   scaling_trace: 0.9
-  scaling_target: 0.9
-  max_scaling_loc: 0.15
-  threshold_delta_t_up: 55
+  scaling_target: 0.8
+  max_scaling_loc: 0.2
+  threshold_delta_t_up: 55    # 55 for ambig, 58 for path
 neurons:
   inhibitory:
     c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000
