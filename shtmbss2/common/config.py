@@ -213,6 +213,11 @@ PATH_CONFIG = join(PY_PKG_PATH, 'config')
 PATH_MODELS = join(PY_PKG_PATH, 'models')
 PATH_MAPS = join(PY_PKG_PATH, 'data', 'maps')
 
+CONFIG_FOLDERS = {
+    ConfigType.NETWORK: PATH_CONFIG,
+    ConfigType.PLOTTING: join(PATH_CONFIG, ConfigType.PLOTTING)
+}
+
 EXPERIMENT_FOLDERS = {
     Backends.NEST: join(PY_PKG_PATH, 'data/evaluation/nest'),
     Backends.BRAIN_SCALES_2: join(PY_PKG_PATH, 'data/evaluation/bss2')

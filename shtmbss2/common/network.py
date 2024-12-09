@@ -66,6 +66,14 @@ class SHTMBase(ABC):
         else:
             self.optimized_parameters = None
 
+        # Define passed variables
+        self.experiment_id = experiment_id
+        self.experiment_num = experiment_num
+        self.experiment_subnum = experiment_subnum
+        self.experiment_episodes = 0
+        self.instance_id = instance_id
+        self.network_state = NetworkState.PREDICTIVE
+
         # Load pre-defined parameters
         self.p_plot: PlottingParameters = PlottingParameters(network_type=self)
         if p is None:
@@ -126,7 +134,7 @@ class SHTMBase(ABC):
         self.random_seed = self.p.experiment.seed_offset + instance_offset
 
     def load_params(self, experiment_type, experiment_id, experiment_num, instance_id, **kwargs):
-        self.p_plot.load_default_params()
+        self.p_plot.load_default_params(network_state=self.network_state, map_name=self.p.experiment.map_name)
         if experiment_type == ExperimentType.OPT_GRID and instance_id > 0:
             self.p.load_experiment_params(experiment_type=ExperimentType.OPT_GRID, experiment_id=experiment_id,
                                           experiment_num=experiment_num, experiment_subnum=0,
@@ -461,6 +469,9 @@ class SHTMBase(ABC):
                 [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)])
 
         self.map.reset_graph_history()
+
+        # reload plotting parameters for new network state
+        self.p_plot.load_default_params(network_state=self.network_state, map_name=self.p.experiment.map_name)
 
     def update_adapt_thresholds(self, num_active_neuron_thresh=None):
         if num_active_neuron_thresh is None:
@@ -1627,7 +1638,7 @@ class SHTMTotal(SHTMBase, ABC):
         shtm = network_type(p=p)
 
         shtm.p_plot = PlottingParameters(network_type=network_type)
-        shtm.p_plot.load_default_params()
+        shtm.p_plot.load_default_params(network_state=shtm.network_state, map_name=shtm.p.experiment.map_name)
 
         shtm.performance.load_data(shtm, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
                                    experiment_subnum=experiment_subnum, instance_id=instance_id)

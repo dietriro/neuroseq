@@ -17,8 +17,10 @@ COL_EXPERIMENT_MAP = 1
 COL_EXPERIMENT_NUM = 2
 
 
-def load_yaml(path_yaml, file_name_yaml):
-    with open(join(path_yaml, file_name_yaml)) as file:
+def load_yaml(path_yaml, file_name_yaml=None):
+    if file_name_yaml is not None:
+        path_yaml = join(path_yaml, file_name_yaml)
+    with open(path_yaml) as file:
         try:
             data = yaml.safe_load(file)
         except yaml.YAMLError as exc:
@@ -27,7 +29,8 @@ def load_yaml(path_yaml, file_name_yaml):
     return data
 
 
-def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config_type=ConfigType.NETWORK):
+def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config_type=ConfigType.NETWORK,
+                network_state=None, map_name=None):
     if not inspect.isclass(network_type):
         network_type = type(network_type)
 
@@ -39,11 +42,17 @@ def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config
         config_file_name = (f"{RuntimeConfig.config_prefix}_{experiment_type}_"
                             f"{RuntimeConfig.backend}_{network_type.__name__}{plasticity_location}.yaml")
     elif config_type == ConfigType.PLOTTING:
-        config_file_name = f"{RuntimeConfig.config_prefix}_{config_type}.yaml"
+        config_file_name = f"{RuntimeConfig.config_prefix}_{config_type}"
+        if network_state is not None and os.path.exists(f"{config_file_name}_{network_state.lower()}"):
+            config_file_name += f"_{network_state.lower()}"
+            if map_name is not None and os.path.exists(f"{config_file_name}_{map_name.split('_')[0].lower()}"):
+                    config_file_name += f"_{map_name.split('_')[0].lower()}"
+        config_file_name += f".yaml"
     else:
         log.error(f"Unknown config type '{config_type}'. Aborting.")
         return None
-    return load_yaml(PATH_CONFIG, config_file_name)
+
+    return load_yaml(CONFIG_FOLDERS[config_type], config_file_name)
 
 
 def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None) -> int:
