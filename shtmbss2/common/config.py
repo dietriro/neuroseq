@@ -19,6 +19,7 @@ PY_PKG_PATH = split(dirname(shtmbss2.__file__))[0]
 class NeuronTypeABC(ABC):
     ID: int = None
     NAME: str = None
+    NAME_PRINT: str = None
     COLOR_ID: int = None
 
     @classmethod
@@ -30,21 +31,25 @@ class NeuronType:
     class Dendrite(NeuronTypeABC):
         ID = 0
         NAME = "dendrite"
+        NAME_PRINT = "Dendrite"
         COLOR_ID = 0
 
     class Soma(NeuronTypeABC):
         ID = 1
         NAME = "soma"
+        NAME_PRINT = "Soma"
         COLOR_ID = 1
 
     class Inhibitory(NeuronTypeABC):
         ID = 2
         NAME = "inhibitory"
+        NAME_PRINT = "Local Inh."
         COLOR_ID = 2
 
     class InhibitoryGlobal(NeuronTypeABC):
         ID = 3
         NAME = "inhibitory_global"
+        NAME_PRINT = "Global Inh."
         COLOR_ID = 3
 
     @staticmethod

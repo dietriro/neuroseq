@@ -187,6 +187,7 @@ class PlottingParameters(Parameters):
     def __init__(self, network_type):
         self.performance = PlottingParameterBases.Performance()
         self.events = PlottingParameterBases.Events()
+        self.thresholds = PlottingParameterBases.Thresholds()
 
         super().__init__(network_type)
 
@@ -382,6 +383,11 @@ class PlottingParameterBases:
             super().__init__()
             self.events = PlottingParameterGroups.Events()
 
+    class Thresholds(PlottingParametersBase):
+        def __init__(self):
+            super().__init__()
+            self.events = PlottingParameterGroups.Events()
+
 
 class PlottingParameterGroups:
     class Fontsize(ParameterGroup):
@@ -403,6 +409,9 @@ class PlottingParameterGroups:
             self.top: float = None
             self.bottom: float = None
             self.subplot_title: float = None
+            self.subplot_threshold: float = None
+            self.subfig_h_space: float = None
+            self.threshold_ratio: float = None
 
 
     class Location(ParameterGroup):

@@ -101,13 +101,7 @@ class SHTMBase(ABC):
         self.last_ext_spike_time = None
         self.neuron_events = None
         self.neuron_events_hist = None
-
-        self.experiment_id = experiment_id
-        self.experiment_num = experiment_num
-        self.experiment_subnum = experiment_subnum
-        self.experiment_episodes = 0
-        self.instance_id = instance_id
-        self.network_state = NetworkState.PREDICTIVE
+        self.neuron_thresholds_hist = None
 
         self.run_state = False
         self.target = None
@@ -429,6 +423,7 @@ class SHTMBase(ABC):
             theta_dAP = self.p.replay.theta_dAP
             weight_factor = self.p.replay.weight_factor_exc_inh
             self.neuron_events_hist = list()
+            self.neuron_thresholds_hist = list()
         else:
             return
 
@@ -460,6 +455,10 @@ class SHTMBase(ABC):
             inh_global.set(weight=weights)
 
         self.network_state = new_network_state
+
+        if self.network_state == NetworkState.REPLAY:
+            self.neuron_thresholds_hist.append(
+                [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)])
 
         self.map.reset_graph_history()
 
@@ -558,9 +557,14 @@ class SHTMBase(ABC):
 
     def plot_events(self, neuron_types="all", symbols="all", size=None, x_lim_lower=None, x_lim_upper=None, seq_start=0,
                     seq_end=None, fig_title="", file_path=None, run_id=None, show_grid=False, separate_seqs=False,
-                    replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True, x_tick_step=None):
+                    replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True, x_tick_step=None,
+                    plot_thresholds=False, large_layout=False, custom_labels=None):
         if size is None:
-            size = (12, 10)
+            size = self.p_plot.events.size
+
+        if self.network_state == NetworkState.REPLAY and replay_runtime is None:
+            log.error("Replay runtime not set. Aborting.")
+            return
 
         if type(neuron_types) is str and neuron_types == "all":
             neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory, NeuronType.InhibitoryGlobal]
@@ -588,6 +592,10 @@ class SHTMBase(ABC):
         elif type(symbols) is list:
             pass
 
+        if custom_labels is None:
+            custom_labels = list()
+        custom_labels = [{"color": "C7", "label": "External"}] + custom_labels
+
         if not separate_seqs:
             n_cols = 1
         elif self.network_state == NetworkState.REPLAY:
@@ -595,8 +603,19 @@ class SHTMBase(ABC):
         else:
             n_cols = len(self.p.experiment.sequences)
 
-        if len(symbols) == 1:
-            fig, axs = plt.subplots(nrows=1, ncols=n_cols, figsize=size)
+        n_rows = len(symbols)
+
+        if plot_thresholds:
+            fig = plt.figure(figsize=size)
+            subfigs = fig.subfigures(2, 1,
+                                     hspace=-0.1,
+                                     height_ratios=[
+                                         (n_rows - self.p_plot.events.padding.threshold_ratio) / (n_rows + 1),
+                                         (1 + self.p_plot.events.padding.threshold_ratio) / (n_rows + 1)])
+
+            axs = subfigs[0].subplots(nrows=len(symbols), ncols=n_cols, sharex="col", sharey="row")
+            axs_th = subfigs[1].subplots(nrows=1, ncols=n_cols + 1, sharey="row")
+
         else:
             fig, axs = plt.subplots(self.p.network.num_symbols, n_cols, sharex="col", sharey="row", figsize=size)
 
@@ -661,6 +680,9 @@ class SHTMBase(ABC):
                     spikes_ext_i.insert(0, [])
                     if spike_offset > 0:
                         spikes_ext_i = self.add_offset_to_events(spikes_ext_i, spike_offset)
+                    # add negative offset to external spikes during replay for better visibility
+                    if self.network_state == NetworkState.REPLAY:
+                        spikes_ext_i = self.add_offset_to_events(spikes_ext_i, -4)
                     ax.eventplot(spikes_ext_i, linewidths=self.p_plot.events.events.width,
                                  linelengths=self.p_plot.events.events.height, label="External", color=f"grey")
                 else:
@@ -671,7 +693,11 @@ class SHTMBase(ABC):
 
                 # Configure the plot layout
                 ax.set_xlim(x_lim_lower, x_lim_upper)
-                ax.set_ylim(-1, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY))
+                # increase upper/lower space if large_layout is set - increases visibility of local/global inh.
+                if large_layout:
+                    ax.set_ylim(-3, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY) + 2)
+                else:
+                    ax.set_ylim(-1, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY))
 
                 if i_seq < 1:
                     ax.set_ylabel(id_to_symbol(i_symbol), weight='bold',
@@ -719,35 +745,90 @@ class SHTMBase(ABC):
                 x_lim_lower += replay_runtime + self.p.encoding.dt_seq
             else:
                 x_lim_lower += (len(
-                    self.p.experiment.sequences[0]) - 1) * self.p.encoding.dt_stm + self.p.encoding.dt_seq
+                    self.p.experiment.sequences[i_seq]) - 1) * self.p.encoding.dt_stm + self.p.encoding.dt_seq
+
+        # plot updated thresholds before/after replays if enabled
+        if plot_thresholds:
+            for i_rep in range(n_cols + 1):
+                ax_th = axs_th[i_rep]
+                # plot bars for thresholds
+                if i_rep == 0:
+                    height_prev = np.full(self.p.network.num_symbols, self.p.replay.v_thresh)
+                    ax_th.bar(range(self.p.network.num_symbols), color="lightgrey",
+                              width=self.p_plot.thresholds.events.width,
+                              height=np.full(self.p.network.num_symbols, self.p.replay.v_thresh))
+                    ax_th.yaxis.set_ticks([4.5, 5.5, 6.5])
+                    ax_th.yaxis.set_tick_params(labelsize=self.p_plot.thresholds.fontsize.tick_labels)
+                    ax_th.set_ylim(4., 7)
+
+                    ax_th.set_title(f"Initial", fontsize=self.p_plot.thresholds.fontsize.tick_labels,
+                                    pad=self.p_plot.thresholds.padding.subplot_title)
+                else:
+                    height_prev = self.neuron_thresholds_hist[i_rep - 1]
+
+                    ax_th.set_title(f"After replay {i_rep}",
+                                    fontsize=self.p_plot.thresholds.fontsize.title,
+                                    pad=self.p_plot.thresholds.padding.subplot_title)
+
+                heights_back = np.max(np.array([self.neuron_thresholds_hist[i_rep], height_prev]), axis=0)
+                heights_front = np.min(np.array([self.neuron_thresholds_hist[i_rep], height_prev]), axis=0)
+
+                ax_th.bar(range(self.p.network.num_symbols), height=heights_back,
+                          width=self.p_plot.thresholds.events.width, color="lightgrey")
+                ax_th.bar(range(self.p.network.num_symbols), height=heights_front,
+                          width=self.p_plot.thresholds.events.width, color="grey")
+
+                # set tick labels
+                ax_th.xaxis.set_ticks(symbols)
+                y_tick_labels_th = [id_to_symbol(k_sym) for k_sym in symbols]
+                ax_th.set_xticklabels(y_tick_labels_th,
+                                      fontsize=self.p_plot.thresholds.fontsize.tick_labels)
+
+                if i_rep > 0:
+                    ax_th.yaxis.set_visible(False)
 
         if n_cols > 1:
             plt.subplots_adjust(wspace=self.p_plot.events.padding.w_space)
 
-        fig.text(self.p_plot.events.location.label_xaxis_x, self.p_plot.events.location.label_xaxis_y, "Time [ms]",
-                 ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
-
-        # Create custom legend for all plots
-        custom_lines = [Line2D([0], [0], color=f"C{n.COLOR_ID}", label=n.get_name_print(), lw=3)
-                        for n in neuron_types]
-        custom_lines.append(Line2D([0], [0], color=f"grey", label="External", lw=3))
-
-        plt.figlegend(handles=custom_lines,
-                      loc=(self.p_plot.events.location.legend_x, self.p_plot.events.location.legend_y),
-                      ncol=5, labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
-                      borderaxespad=4)
-
-        fig.text(self.p_plot.events.location.label_yaxis_x, self.p_plot.events.location.label_yaxis_y, y_label,
-                 va="center", rotation="vertical", fontsize=self.p_plot.events.fontsize.axis_labels)
-
+        # figure title
         fig.suptitle(fig_title, x=self.p_plot.events.location.title_x, y=self.p_plot.events.location.title_y,
                      fontsize=self.p_plot.events.fontsize.title)
 
+        # x-axis label
+        fig.text(self.p_plot.events.location.label_xaxis_x, self.p_plot.events.location.label_xaxis_y, "Time [ms]",
+                 ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
+
+        # y-axis label
+        fig.text(self.p_plot.events.location.label_yaxis_x, self.p_plot.events.location.label_yaxis_y, y_label,
+                 va="center", rotation="vertical", fontsize=self.p_plot.events.fontsize.axis_labels)
+
+        if plot_thresholds:
+            fig.text(self.p_plot.events.location.label_yaxis_x, 0.12, "Thresholds",
+                     va="center", rotation="vertical", fontsize=self.p_plot.events.fontsize.axis_labels)
+
+        # create custom legend for all plots
+        custom_lines = [Line2D([0], [0], color=f"C{n.COLOR_ID}", label=n.NAME_PRINT, lw=4)
+                        for n in neuron_types]
+        if custom_labels is not None:
+            for custom_label in custom_labels:
+                custom_lines.append(Line2D([0], [0], lw=4, **custom_label))
+        plt.figlegend(handles=custom_lines,
+                      loc=(self.p_plot.events.location.legend_x, self.p_plot.events.location.legend_y),
+                      ncol=len(custom_lines), labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend,
+                      fancybox=True, borderaxespad=4, handlelength=1)
+
+        # figure geometry
         plt.subplots_adjust(
             bottom=self.p_plot.events.padding.bottom,
             top=self.p_plot.events.padding.top,
-                            )
+        )
 
+        if plot_thresholds:
+            subfigs[1].subplots_adjust(
+                bottom=self.p_plot.thresholds.padding.bottom,
+            )
+
+        # save figure if enabled
         if file_path is not None:
             plt.savefig(f"{file_path}.pdf")
             plt.savefig(f"{file_path}.svg")
@@ -1208,7 +1289,8 @@ class SHTMTotal(SHTMBase, ABC):
         self.p.experiment.runtime = runtime
 
         for t in range(steps):
-            log.info(f'Running emulation step {self.experiment_episodes + t + 1}/{self.experiment_episodes + steps}')
+            log.info(
+                f'Running {self.network_state} step {self.experiment_episodes + t + 1}/{self.experiment_episodes + steps}')
 
             # reset the simulator and the network state if not first run
             if self.run_state:
@@ -1254,6 +1336,8 @@ class SHTMTotal(SHTMBase, ABC):
 
             if self.network_state == NetworkState.REPLAY:
                 self.update_adapt_thresholds(num_active_neuron_thresh=num_active_neuron_thresh)
+                neuron_thresholds = [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)]
+                self.neuron_thresholds_hist.append(neuron_thresholds)
 
             # print performance results
             self.print_performance_results(final=False)
@@ -1422,7 +1506,7 @@ class SHTMTotal(SHTMBase, ABC):
     def save_plot_events(self, neuron_types="all", symbols="all", size=None, x_lim_lower=None, x_lim_upper=None,
                          seq_start=0, seq_end=None, fig_title="", run_id=None, show_grid=False,
                          separate_seqs=False, replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True,
-                         x_tick_step=None):
+                         x_tick_step=None, plot_thresholds=False):
         # set plot_name and retrieve experiment folder given the current config
         plot_name = f"plot_events_{self.network_state.lower()}"
         exp_folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
@@ -1435,7 +1519,12 @@ class SHTMTotal(SHTMBase, ABC):
         # find last plot file, i.e. with highest id in the files list
         last_plot_id = 0
         for file_i in files:
-            plot_id_i = int(os.path.basename(file_i).split('_')[-1].split('.')[0])
+            try:
+                plot_id_i = int(os.path.basename(file_i).split('_')[-1].split('.')[0])
+            except ValueError:
+                log.warning(
+                    f"Plot id '{os.path.basename(file_i).split('_')[-1].split('.')[0]}' is not an int. Skipping file.")
+                continue
             if plot_id_i > last_plot_id:
                 last_plot_id = plot_id_i
         last_plot_id += 1
@@ -1449,7 +1538,7 @@ class SHTMTotal(SHTMBase, ABC):
                          x_lim_upper=x_lim_upper, seq_start=seq_start, seq_end=seq_end, fig_title=fig_title,
                          run_id=run_id, show_grid=show_grid, separate_seqs=separate_seqs, replay_runtime=replay_runtime,
                          plot_dendritic_trace=plot_dendritic_trace, enable_y_ticks=enable_y_ticks,
-                         x_tick_step=x_tick_step, file_path=plot_path
+                         x_tick_step=x_tick_step, file_path=plot_path, plot_thresholds=plot_thresholds
                          )
 
     def save_plot_graph(self, history_range=None, fps=1, only_traversable=True, arrows=True,
