@@ -7,7 +7,8 @@ map_ambiguous_02:
 map_ambiguous_02b:
   sequences: [[A, B, C, D, E], [A, B, C, D, E], [A, B, C, D, F], [A, B, C, D, E], [A, B, G, H]]
 map_ambiguous_03:
-  sequences: [[A, B, C, D], [A, B, C, D], [A, B, F], [A, B, C, E], [A, B, C, D], [A, B, F]]
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E], [A, B, C], [A, B, F], [A, B, F]]
+  sequences: [[A, B, C, D], [A, B, C], [A, B, C, D], [A, B, F], [A, B, C, E], [A, B, F]]
 #  sequences: [[A, B, C, D], [A, B, F], [A, B, C, D], [A, B, C, E], [A, B, F], [A, B, C, D]]
 map_ambiguous_04:
   sequences: [
