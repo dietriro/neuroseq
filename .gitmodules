@@ -1,0 +1,3 @@
+[submodule "data/evaluation"]
+	path = data/evaluation
+	url = git@github.com:dietriro/neuroseq-evaluation.git
