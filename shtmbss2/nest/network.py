@@ -1,9 +1,9 @@
 import os
-import numpy as np
+
+from shtmbss2.nest.learning import Plasticity
 
 os.environ["PYNEST_QUIET"] = "1"
 
-from abc import ABC
 from quantities import ms
 from neo.core.spiketrainlist import SpikeTrain, SpikeTrainList
 
@@ -379,17 +379,3 @@ class SHTMTotal(SHTMBase, network.SHTMTotal):
         super().__init__(experiment_type=experiment_type, experiment_id=experiment_id, experiment_num=experiment_num,
                          experiment_subnum=experiment_subnum, plasticity_cls=Plasticity, instance_id=instance_id,
                          seed_offset=seed_offset, p=p, **kwargs)
-
-
-class Plasticity(network.Plasticity):
-    def __init__(self, projection: pynn.Projection, post_somas, shtm, index, **kwargs):
-        super().__init__(projection, post_somas, shtm, index, **kwargs)
-
-    def get_connection_id_pre(self, connection):
-        return self.projection.pre.id_to_index(connection.source)
-
-    def get_connection_id_post(self, connection):
-        return self.projection.post.id_to_index(connection.target)
-
-    def get_connections(self):
-        return self.projection.nest_connections
