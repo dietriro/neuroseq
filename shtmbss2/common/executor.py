@@ -24,12 +24,13 @@ warnings.filterwarnings(action='ignore', category=UserWarning)
 
 
 class ParallelExecutor:
-    def __init__(self, num_instances, experiment_id, experiment_type=ExperimentType.EVAL_MULTI, experiment_num=None,
-                 experiment_subnum=None, parameter_ranges=None, fig_save=False):
+    def __init__(self, num_instances, experiment_id, experiment_type=ExperimentType.EVAL_MULTI, experiment_map=None,
+                 experiment_num=None, experiment_subnum=None, parameter_ranges=None, fig_save=False):
         self.num_instances = num_instances
         self.experiment_id = experiment_id
 
         self.experiment_type = experiment_type
+        self.experiment_map = experiment_map
         self.experiment_num = experiment_num
         self.experiment_subnum = experiment_subnum
 
@@ -92,7 +93,7 @@ class ParallelExecutor:
 
         # retrieve experiment num for new experiment
         if self.experiment_num is None:
-            self.experiment_num = get_last_experiment_num(SHTMTotal, self.experiment_id, self.experiment_type) + 1
+            self.experiment_num = get_last_experiment_num(self.experiment_id, self.experiment_type, self.experiment_map) + 1
 
         if seed_offset is None:
             seed_offset = int(time.time())
@@ -152,14 +153,13 @@ class ParallelExecutor:
 
             # retrieve performance data for entire set of instances for subnum
             pf = PerformanceMulti(p, self.num_instances)
-            pf.load_data(SHTMTotal, experiment_type=self.experiment_type,
-                         experiment_id=self.experiment_id,
-                         experiment_num=self.experiment_num)
+            pf.load_data(SHTMTotal, experiment_type=self.experiment_type, experiment_id=self.experiment_id,
+                         experiment_num=self.experiment_num, experiment_map=self.experiment_map)
 
             # save figure
             fig, _ = pf.plot(p_plot, statistic=StatisticalMetrics.MEDIAN, fig_show=False, plot_dd=plot_perf_dd)
-            figure_path = join(get_experiment_folder(SHTMTotal, self.experiment_type, self.experiment_id,
-                                                     self.experiment_num), "performance")
+            figure_path = join(get_experiment_folder(self.experiment_type, self.experiment_id, self.experiment_num,
+                                                     experiment_map=self.experiment_map), "performance")
             for plot_file_type in RuntimeConfig.plot_file_types:
                 fig.savefig(f"{figure_path}.{plot_file_type}", dpi=p_plot.performance.dpi)
                 plt.close(fig)

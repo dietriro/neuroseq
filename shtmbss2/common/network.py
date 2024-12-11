@@ -1,10 +1,11 @@
 import time
-import numpy as np
 import copy
 import pickle
 import yaml
 import sys
 import multiprocessing as mp
+import itertools as it
+import glob
 
 from types import ModuleType, FunctionType
 from gc import get_referents
@@ -12,18 +13,20 @@ from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 from pyNN.random import NumpyRNG
 from tabulate import tabulate
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from copy import deepcopy
 
 from shtmbss2.common.config import *
+from shtmbss2.common.learning import Plasticity
 from shtmbss2.core.logging import log
 from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
 from shtmbss2.core.performance import PerformanceSingle
-from shtmbss2.core.helpers import (Process, symbol_from_label, id_to_symbol, calculate_trace,
+from shtmbss2.core.helpers import (Process, id_to_symbol, calculate_trace,
                                    psp_max_2_psc_max)
 from shtmbss2.common.config import NeuronType, RecTypes
 from shtmbss2.common.plot import plot_dendritic_events
 from shtmbss2.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
+from shtmbss2.core.map import Map, LabelTypes
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
     import pynn_brainscales.brainscales2 as pynn
@@ -49,7 +52,6 @@ ID_PRE = 0
 ID_POST = 1
 NON_PICKLE_OBJECTS = ["post_somas", "projection", "shtm"]
 
-
 # Custom objects know their class.
 # Function objects seem to know way too much, including modules.
 # Exclude modules as well.
@@ -64,6 +66,14 @@ class SHTMBase(ABC):
         else:
             self.optimized_parameters = None
 
+        # Define passed variables
+        self.experiment_id = experiment_id
+        self.experiment_num = experiment_num
+        self.experiment_subnum = experiment_subnum
+        self.experiment_episodes = 0
+        self.instance_id = instance_id
+        self.network_state = NetworkState.PREDICTIVE
+
         # Load pre-defined parameters
         self.p_plot: PlottingParameters = PlottingParameters(network_type=self)
         if p is None:
@@ -73,9 +83,13 @@ class SHTMBase(ABC):
             self.p: NetworkParameters = deepcopy(p)
         self.p.experiment.type = experiment_type
 
+        # Load map data and create new map
+        self.map = Map(self.p.experiment.map_name, self.p.experiment.sequences, save_history=True)
+
         # Declare neuron populations
         self.neurons_exc = None
         self.neurons_inh = None
+        self.neurons_inh_global = None
         self.neurons_ext = None
         self.neurons_add = None
 
@@ -84,20 +98,21 @@ class SHTMBase(ABC):
         self.exc_to_exc = None
         self.exc_to_inh = None
         self.inh_to_exc = None
+        self.inh_to_inh_global = None
+        self.inh_to_exc_global = None
 
         # Declare recordings
         self.rec_neurons_exc = None
         self.spike_times_ext = None
+        self.spike_times_ext_indiv = None
+        self.max_spike_time = None
         self.last_ext_spike_time = None
         self.neuron_events = None
-
-        self.experiment_id = experiment_id
-        self.experiment_num = experiment_num
-        self.experiment_subnum = experiment_subnum
-        self.experiment_episodes = 0
-        self.instance_id = instance_id
+        self.neuron_events_hist = None
+        self.neuron_thresholds_hist = None
 
         self.run_state = False
+        self.target = None
 
         self.performance = PerformanceSingle(parameters=self.p)
 
@@ -119,7 +134,7 @@ class SHTMBase(ABC):
         self.random_seed = self.p.experiment.seed_offset + instance_offset
 
     def load_params(self, experiment_type, experiment_id, experiment_num, instance_id, **kwargs):
-        self.p_plot.load_default_params()
+        self.p_plot.load_default_params(network_state=self.network_state, map_name=self.p.experiment.map_name)
         if experiment_type == ExperimentType.OPT_GRID and instance_id > 0:
             self.p.load_experiment_params(experiment_type=ExperimentType.OPT_GRID, experiment_id=experiment_id,
                                           experiment_num=experiment_num, experiment_subnum=0,
@@ -150,6 +165,16 @@ class SHTMBase(ABC):
                                                                   self.p.neurons.excitatory.tau_syn_inh,
                                                                   self.p.neurons.excitatory.c_m)) / 1000
 
+        # check if number of symbols is high enough
+        max_symbol = id_to_symbol(self.p.network.num_symbols)
+        for seq_i in self.p.experiment.sequences:
+            max_symbol = max(seq_i + [max_symbol])
+        if max_symbol > id_to_symbol(self.p.network.num_symbols):
+            log.warning(f"The number of symbols used in sequences exceeds the number of symbols specified "
+                        f"({SYMBOLS[max_symbol]} > {self.p.network.num_symbols}).\n"
+                        "Setting the number of symbols to the maximum value used.")
+            self.p.network.num_symbols = SYMBOLS[max_symbol] + 1
+
     def init_network(self):
         self.init_neurons()
         self.init_connections()
@@ -159,8 +184,14 @@ class SHTMBase(ABC):
         self.neurons_exc = self.init_all_neurons_exc()
 
         self.neurons_inh = self.init_neurons_inh()
+        self.neurons_inh_global = self.init_neurons_inh(num_neurons=1,
+                                                        tau_refrac=self.p.neurons.inhibitory_global.tau_refrac)
 
-        self.neurons_ext = Population(self.p.network.num_symbols, SpikeSourceArray())
+        if self.p.network.ext_indiv:
+            self.neurons_ext = [Population(self.p.network.num_neurons, SpikeSourceArray())
+                                for _ in range(self.p.network.num_symbols)]
+        else:
+            self.neurons_ext = Population(self.p.network.num_symbols, SpikeSourceArray())
 
     @abstractmethod
     def init_all_neurons_exc(self, num_neurons=None):
@@ -182,30 +213,86 @@ class SHTMBase(ABC):
             somas.actual_hwparams[i].multicompartment.connect_soma = True
 
     @abstractmethod
-    def init_neurons_inh(self, num_neurons=None):
+    def init_neurons_inh(self, num_neurons=None, tau_refrac=None):
         pass
 
     def init_external_input(self, init_recorder=False, init_performance=False):
-        spike_times = [list() for _ in range(self.p.network.num_symbols)]
+        if self.p.network.ext_indiv:
+            spike_times = [[list() for _ in range(self.p.network.num_neurons)]
+                           for _ in range(self.p.network.num_symbols)]
+        else:
+            spike_times = [list() for _ in range(self.p.network.num_symbols)]
+        spike_times_sym = [list() for _ in range(self.p.network.num_symbols)]
         spike_time = None
 
+        if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
+            seq_distribution = np.round(
+                np.array(self.p.encoding.probabilities) * self.p.encoding.num_repetitions).astype(int)
+            if np.sum(seq_distribution) > self.p.encoding.num_repetitions:
+                log.warn(f"Accumulated sum of repetitions per sequence exceeds total number of repetitions "
+                         f"({np.sum(seq_distribution)} > {self.p.encoding.num_repetitions}).")
+
+        starting_symbols = {sym: 0 for sym in SYMBOLS.keys()}
         sequence_offset = self.p.encoding.t_exc_start
         for _ in range(self.p.encoding.num_repetitions):
-            for i_seq, sequence in enumerate(self.p.experiment.sequences):
+            if self.p.encoding.encoding_type == EncodingType.PROBABILISTIC:
+                i_seq = np.random.choice(len(self.p.experiment.sequences), p=self.p.encoding.probabilities)
+                sequences = [self.p.experiment.sequences[i_seq]]
+            else:
+                sequences = copy.copy(self.p.experiment.sequences)
+
+            for i_seq, sequence in enumerate(sequences):
                 for i_element, element in enumerate(sequence):
-                    spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
-                    spike_times[SYMBOLS[element]].append(spike_time)
+                    if self.network_state == NetworkState.REPLAY:
+                        if i_element == 0 and self.p.network.replay_mode == ReplayMode.PARALLEL:
+                            spike_time = self.p.encoding.t_exc_start
+                        elif i_element == 0 and self.p.network.replay_mode == ReplayMode.CONSECUTIVE:
+                            spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
+                        else:
+                            break
+                    else:
+                        spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
+
+                    if self.p.network.ext_indiv:
+                        if i_element == 0:
+                            range_start = starting_symbols[element] * self.p.network.pattern_size
+                            range_end = (starting_symbols[element] + 1) * self.p.network.pattern_size
+
+                            if range_start > self.p.network.num_neurons or range_end > self.p.network.num_neurons:
+                                log.error(f"Neuron range for ext_indiv [{range_start}, {range_end}] is out of bounds"
+                                          f"for num_neurons={self.p.network.num_neurons}.")
+                                raise Exception(f"Neuron range for ext_indiv [{range_start}, {range_end}] is out of "
+                                                f"bounds for num_neurons={self.p.network.num_neurons}.")
+
+                            neuron_range = range(range_start, range_end)
+                            starting_symbols[element] += 1
+                        else:
+                            neuron_range = range(self.p.network.num_neurons)
+                        for i_neuron in neuron_range:
+                            if 0 <= i_neuron < self.p.network.num_neurons:
+                                spike_times[SYMBOLS[element]][i_neuron].append(spike_time)
+                            else:
+                                log.warning(f"Tried to create spike times for neuron id [{i_neuron}], which is out of "
+                                            f"range for num_neurons={self.p.network.num_neurons}. Skipping spike.")
+                    else:
+                        spike_times[SYMBOLS[element]].append(spike_time)
+                    spike_times_sym[SYMBOLS[element]].append(spike_time)
                 sequence_offset = spike_time + self.p.encoding.dt_seq
 
-        self.last_ext_spike_time = spike_time
+        self.last_ext_spike_time = max([max(s, default=0) for s in spike_times_sym], default=0)
 
         log.debug(f'Spike times:')
-        for i_letter, letter_spikes in enumerate(spike_times):
-            log.debug(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times[i_letter]}')
+        for i_letter, letter_spikes in enumerate(spike_times_sym):
+            log.debug(f'{list(SYMBOLS.keys())[i_letter]}: {spike_times_sym[i_letter]}')
 
-        self.neurons_ext.set(spike_times=spike_times)
+        for i_sym in range(self.p.network.num_symbols):
+            if self.p.network.ext_indiv:
+                self.neurons_ext[i_sym].set(spike_times=spike_times[i_sym])
+            else:
+                self.neurons_ext[i_sym:i_sym + 1].set(spike_times=spike_times[i_sym])
 
-        self.spike_times_ext = spike_times
+        self.spike_times_ext = spike_times_sym
+        self.spike_times_ext_indiv = spike_times
 
         if init_performance:
             log.info(f'Initialized external input for sequence(s) {self.p.experiment.sequences}')
@@ -215,10 +302,17 @@ class SHTMBase(ABC):
     def init_connections(self, exc_to_exc=None, exc_to_inh=None):
         self.ext_to_exc = []
         for i in range(self.p.network.num_symbols):
+            if self.p.network.ext_indiv:
+                neurons_ext_i = self.neurons_ext[i]
+                connector = pynn.OneToOneConnector()
+            else:
+                neurons_ext_i = PopulationView(self.neurons_ext, [i])
+                connector = pynn.AllToAllConnector()
+
             self.ext_to_exc.append(Projection(
-                PopulationView(self.neurons_ext, [i]),
+                neurons_ext_i,
                 self.get_neurons(NeuronType.Soma, symbol_id=i),
-                AllToAllConnector(),
+                connector,
                 synapse_type=StaticSynapse(weight=self.p.synapses.w_ext_exc, delay=self.p.synapses.delay_ext_exc),
                 receptor_type=self.p.synapses.receptor_ext_exc))
 
@@ -228,9 +322,16 @@ class SHTMBase(ABC):
         for i in range(self.p.network.num_symbols):
             for j in range(self.p.network.num_symbols):
                 if i == j:
-                    i_w += 1
                     continue
-                weight = self.p.synapses.w_exc_exc if exc_to_exc is None else exc_to_exc[i_w]
+                if exc_to_exc is not None:
+                    weight = exc_to_exc[i_w]
+                    weight[np.isnan(weight)] = 0
+                elif not self.p.plasticity.enable_structured_stdp:
+                    weight = np.random.uniform(self.p.plasticity.permanence_init_min * 0.01,
+                                               self.p.plasticity.permanence_init_max * 0.01,
+                                               size=(self.p.network.num_neurons, self.p.network.num_neurons))
+                else:
+                    weight = self.p.synapses.w_exc_exc
                 seed = j + i * self.p.network.num_symbols + self.p.experiment.seed_offset
                 if self.instance_id is not None:
                     seed += self.instance_id * self.p.network.num_symbols ** 2
@@ -261,6 +362,27 @@ class SHTMBase(ABC):
                 AllToAllConnector(),
                 synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc, delay=self.p.synapses.delay_inh_exc),
                 receptor_type=self.p.synapses.receptor_inh_exc))
+
+        self.inh_to_inh_global = []
+        for i in range(self.p.network.num_symbols):
+            self.inh_to_inh_global.append(Projection(
+                PopulationView(self.neurons_inh, [i]),
+                self.neurons_inh_global,
+                AllToAllConnector(),
+                synapse_type=StaticSynapse(weight=0),
+                receptor_type=self.p.synapses.receptor_exc_inh))
+
+        self.inh_to_exc_global = []
+        for i in range(self.p.network.num_symbols):
+            inh_to_exc_global_i = list()
+            for k_symbol in range(self.p.network.num_symbols):
+                inh_to_exc_global_i.append(Projection(
+                    self.neurons_inh_global,
+                    self.get_neurons(NeuronType.Soma, symbol_id=k_symbol),
+                    AllToAllConnector(),
+                    synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_exc),
+                    receptor_type=self.p.synapses.receptor_inh_exc))
+            self.inh_to_exc_global.append(inh_to_exc_global_i)
 
     def init_prerun(self):
         pass
@@ -297,6 +419,118 @@ class SHTMBase(ABC):
     def reset(self, store_to_cache=False):
         pass
 
+    def set_state(self, new_network_state, target=None):
+        self.target = target
+        # define new neuron/network params based on network-state
+        if new_network_state == NetworkState.PREDICTIVE:
+            v_thresh = self.p.neurons.excitatory.v_thresh
+            theta_dAP = self.p.neurons.dendrite.theta_dAP
+            weight_factor = 1
+        elif new_network_state == NetworkState.REPLAY:
+            v_thresh = self.p.replay.v_thresh
+            theta_dAP = self.p.replay.theta_dAP
+            weight_factor = self.p.replay.weight_factor_exc_inh
+            self.neuron_events_hist = list()
+            self.neuron_thresholds_hist = list()
+        else:
+            return
+
+        # update neuron parameters
+        for i_sym in range(len(self.neurons_exc)):
+            if target is not None and target == i_sym:
+                v_thresh_tmp = v_thresh * self.p.replay.scaling_target
+            else:
+                v_thresh_tmp = v_thresh
+            self.neurons_exc[i_sym].set(V_th=v_thresh_tmp,
+                                        theta_dAP=theta_dAP)
+
+        # update exc-inh weights
+        if self.p.synapses.dyn_weight_calculation:
+            self.p.synapses.j_exc_inh_psp = (1.2 * self.p.neurons.inhibitory.v_thresh /
+                                             self.p.network.pattern_size / weight_factor)
+            self.p.synapses.w_exc_inh = psp_max_2_psc_max(self.p.synapses.j_exc_inh_psp,
+                                                          self.p.neurons.inhibitory.tau_m,
+                                                          self.p.neurons.inhibitory.tau_syn_E,
+                                                          self.p.neurons.inhibitory.c_m)
+        for exc_to_inh in self.exc_to_inh:
+            weights = np.full(exc_to_inh.get("weight", format="array").shape, self.p.synapses.w_exc_inh)
+            exc_to_inh.set(weight=weights)
+
+        # for new network (v2)
+        for inh_global in self.inh_to_inh_global:
+            weights = np.full(inh_global.get("weight", format="array").shape,
+                              self.p.synapses.w_exc_inh * self.p.network.pattern_size * 2)
+            inh_global.set(weight=weights)
+
+        self.network_state = new_network_state
+
+        if self.network_state == NetworkState.REPLAY:
+            self.neuron_thresholds_hist.append(
+                [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)])
+
+        self.map.reset_graph_history()
+
+        # reload plotting parameters for new network state
+        self.p_plot.load_default_params(network_state=self.network_state, map_name=self.p.experiment.map_name)
+
+    def update_adapt_thresholds(self, num_active_neuron_thresh=None):
+        if num_active_neuron_thresh is None:
+            num_active_neuron_thresh = self.p.network.pattern_size * 1.5
+
+        con_id = self.p.network.num_symbols - 1
+        # compare the spike times of all pre/post neurons. If a pre-neuron caused a post-neuron to fire (i.e. spiked
+        # within a window before the post and has a connection to post) then set a trace-offset and reduce the adaptive
+        # threshold subsequently.
+        for i_sym in range(1, self.p.network.num_symbols):
+            num_active_neurons = 0
+            trace_offset = 1.0
+            spikes_i = self.neuron_events[NeuronType.Soma][i_sym]
+            num_active_cons = 0
+            for k_sym in range(self.p.network.num_symbols):
+                if i_sym == k_sym:
+                    continue
+                weights = self.exc_to_exc[con_id].get("weight", format="array")
+                spikes_k = self.neuron_events[NeuronType.Soma][k_sym]
+                num_active_neurons = 0
+                for i_neuron, spikes_i_i in enumerate(spikes_i):
+                    num_active_neurons += int(len(spikes_i_i) > 0)
+                    if num_active_cons >= self.p.network.pattern_size:
+                        continue
+                    for k_neuron, spikes_k_k in enumerate(spikes_k):
+                        if not np.isnan(weights[i_neuron, k_neuron]) and weights[i_neuron, k_neuron] > 0:
+                            delta_t = np.array([comb_i[0] - comb_i[1] for comb_i in it.product(spikes_k_k, spikes_i_i)])
+                            log.debug(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
+                            # The value 56 is suited for theta_dAP = 59 and v_thresh = 6.5
+                            if np.any((delta_t < self.p.replay.threshold_delta_t_up) & (delta_t > 4)):
+                                log.info(f"delta_t[{id_to_symbol(i_sym)}, {id_to_symbol(k_sym)}: {delta_t}")
+                                trace_offset = self.p.replay.scaling_trace
+                                num_active_cons += 1
+                                break
+                con_id += 1
+
+            V_th = self.neurons_exc[i_sym].get("V_th")
+            V_th_new = V_th * trace_offset
+
+            if self.target is None:
+                # calculate a value representing the difference between the number of active neurons
+                # and the set threshold
+                ambig_perc = self.p.network.pattern_size / self.p.network.num_neurons
+                perc_act_neurons = num_active_neurons / self.p.network.num_neurons
+
+                if perc_act_neurons >= ambig_perc:
+                    ambig_offset = np.e ** (-8 * (perc_act_neurons - ambig_perc)) * self.p.replay.max_scaling_loc
+                else:
+                    ambig_offset = np.e ** (20 * (perc_act_neurons - ambig_perc)) * self.p.replay.max_scaling_loc
+
+                V_th_new *= (1 - ambig_offset)
+
+                log.debug(f"[{id_to_symbol(i_sym)}]  N_act_neu = {num_active_neurons},  "
+                          f"target_offset' = {ambig_offset}")
+
+            self.neurons_exc[i_sym].set(V_th=V_th_new)
+            if V_th != V_th_new:
+                log.debug(f"[{id_to_symbol(i_sym)}]  V_th = {V_th},  V_th' = {V_th_new}")
+
     def run_sim(self, runtime):
         pynn.run(runtime)
         self.run_state = True
@@ -310,39 +544,89 @@ class SHTMBase(ABC):
                         runtime=None, dtype=None):
         pass
 
+    @staticmethod
+    def add_offset_to_events(events, offset):
+        """
+        Adds the defined offset in ms to a list of events for a list of neurons.
+
+        :param events: The list of events grouped in [neurons][events per neuron].
+        :type events: list
+        :param offset: The offset in ms.
+        :type offset: float
+        :return: The list of events grouped in [neurons][events per neuron] with added offset.
+        :rtype: list
+        """
+        for i in range(len(events)):
+            if len(events[i]) > 0:
+                if type(events[i]) == np.ndarray:
+                    events[i] += offset
+                elif type(events[i]) == list:
+                    events[i] = [event + offset for event in events[i]]
+                else:
+                    events[i] += offset * events[i].units
+        return events
+
     def plot_events(self, neuron_types="all", symbols="all", size=None, x_lim_lower=None, x_lim_upper=None, seq_start=0,
-                    seq_end=None, fig_title="", file_path=None, run_id=None, show_grid=False, separate_seqs=False):
+                    seq_end=None, fig_title="", file_path=None, run_id=None, show_grid=False, separate_seqs=False,
+                    replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True, x_tick_step=None,
+                    plot_thresholds=False, large_layout=False, custom_labels=None):
         if size is None:
-            size = (12, 10)
+            size = self.p_plot.events.size
+
+        if self.network_state == NetworkState.REPLAY and replay_runtime is None:
+            log.error("Replay runtime not set. Aborting.")
+            return
 
         if type(neuron_types) is str and neuron_types == "all":
-            neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory]
+            neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory, NeuronType.InhibitoryGlobal]
         elif type(neuron_types) is list:
             pass
         else:
             return
 
         if run_id is None:
-            max_time = self.p.experiment.runtime
+            if x_lim_lower is None:
+                x_lim_lower = 0.
+            if x_lim_upper is None:
+                x_lim_upper = self.p.experiment.runtime
         else:
             single_run_length = self.calc_runtime_single() - self.p.encoding.t_exc_start
-            x_lim_lower = run_id * single_run_length
-            x_lim_upper = (run_id + 1) * single_run_length - self.p.encoding.dt_seq * 0.9
-            max_time = x_lim_upper
-
-        if x_lim_lower is None:
-            x_lim_lower = 0.
-        if x_lim_upper is None:
-            x_lim_upper = max_time
+            if x_lim_lower is None:
+                x_lim_lower = run_id * single_run_length
+            if x_lim_upper is None:
+                x_lim_upper = (run_id + 1) * single_run_length - self.p.encoding.dt_seq * 0.9
+                if self.network_state == NetworkState.REPLAY:
+                    x_lim_upper = self.max_spike_time + self.p.encoding.t_exc_start
 
         if type(symbols) is str and symbols == "all":
             symbols = range(self.p.network.num_symbols)
         elif type(symbols) is list:
             pass
 
-        n_cols = 1 if not separate_seqs else len(self.p.experiment.sequences)
-        if len(symbols) == 1:
-            fig, axs = plt.subplots(nrows=1, ncols=n_cols, figsize=size)
+        if custom_labels is None:
+            custom_labels = list()
+        custom_labels = [{"color": "C7", "label": "External"}] + custom_labels
+
+        if not separate_seqs:
+            n_cols = 1
+        elif self.network_state == NetworkState.REPLAY:
+            n_cols = len(self.neuron_events_hist)
+        else:
+            n_cols = len(self.p.experiment.sequences)
+
+        n_rows = len(symbols)
+
+        if plot_thresholds:
+            fig = plt.figure(figsize=size)
+            subfigs = fig.subfigures(2, 1,
+                                     hspace=-0.1,
+                                     height_ratios=[
+                                         (n_rows - self.p_plot.events.padding.threshold_ratio) / (n_rows + 1),
+                                         (1 + self.p_plot.events.padding.threshold_ratio) / (n_rows + 1)])
+
+            axs = subfigs[0].subplots(nrows=len(symbols), ncols=n_cols, sharex="col", sharey="row")
+            axs_th = subfigs[1].subplots(nrows=1, ncols=n_cols + 1, sharey="row")
+
         else:
             fig, axs = plt.subplots(self.p.network.num_symbols, n_cols, sharex="col", sharey="row", figsize=size)
 
@@ -350,12 +634,21 @@ class SHTMBase(ABC):
             seq_end = seq_start + self.p.experiment.runtime
 
         ax = None
+        y_label = "no-data"
 
         for i_seq in range(n_cols):
+            spike_offset = 0
+            neuron_events = self.neuron_events
             if n_cols > 1:
-                x_lim_upper = x_lim_lower + (len(self.p.experiment.sequences[0]) - 0.5) * self.p.encoding.dt_stm + self.p.encoding.t_exc_start
-            for i_symbol in symbols:
+                if self.network_state == NetworkState.PREDICTIVE:
+                    x_lim_upper = (x_lim_lower + (len(self.p.experiment.sequences[i_seq]) - 0.5)
+                                   * self.p.encoding.dt_stm + self.p.encoding.t_exc_start)
+                else:
+                    spike_offset = i_seq * (replay_runtime + self.p.encoding.dt_seq)
+                    x_lim_upper = x_lim_lower + replay_runtime
+                    neuron_events = self.neuron_events_hist[i_seq]
 
+            for i_symbol in symbols:
                 if len(symbols) == 1:
                     ax = axs[i_seq]
                 elif n_cols == 1:
@@ -365,42 +658,83 @@ class SHTMBase(ABC):
 
                 for neurons_i in neuron_types:
                     # Retrieve and plot spikes from selected neurons
-                    spikes = deepcopy(self.neuron_events[neurons_i][i_symbol])
+                    spikes = deepcopy(neuron_events[neurons_i][i_symbol])
                     if neurons_i == NeuronType.Inhibitory:
                         spikes.append([])
+                    elif neurons_i == NeuronType.InhibitoryGlobal:
+                        if self.network_state == NetworkState.PREDICTIVE:
+                            continue
+                        for _ in range(self.p.network.num_neurons + 1):
+                            spikes.insert(0, [])
                     else:
                         spikes.insert(0, [])
+                    if spike_offset > 0:
+                        spikes = self.add_offset_to_events(spikes, spike_offset)
                     if neurons_i == NeuronType.Dendrite:
-                        spikes_post = deepcopy(self.neuron_events[NeuronType.Soma][i_symbol])
+                        spikes_post = deepcopy(neuron_events[NeuronType.Soma][i_symbol])
+                        if spike_offset > 0:
+                            spikes_post = self.add_offset_to_events(spikes_post, spike_offset)
                         plot_dendritic_events(ax, spikes[1:], spikes_post,
-                                              tau_dap=self.p.neurons.dendrite.tau_dAP*self.p.encoding.t_scaling_factor,
-                                              color=f"C{neurons_i.ID}", label=neurons_i.NAME.capitalize(),
-                                              seq_start=seq_start, seq_end=seq_end, epoch_end=x_lim_upper)
+                                              tau_dap=self.p.neurons.dendrite.tau_dAP * self.p.encoding.t_scaling_factor,
+                                              color=f"C{neurons_i.COLOR_ID}", label=neurons_i.get_name_print(),
+                                              seq_start=seq_start + spike_offset, seq_end=seq_end + spike_offset,
+                                              epoch_end=x_lim_upper, plot_trace=plot_dendritic_trace)
                     else:
-                        line_widths = 1.5
-                        line_lengths = 1
-
-                        ax.eventplot(spikes, linewidths=line_widths, linelengths=line_lengths,
-                                     label=neurons_i.NAME.capitalize(), color=f"C{neurons_i.ID}")
+                        ax.eventplot(spikes, linewidths=self.p_plot.events.events.width,
+                                     linelengths=self.p_plot.events.events.height,
+                                     label=neurons_i.get_name_print(), color=f"C{neurons_i.COLOR_ID}")
 
                 # plot external spikes as reference lines
-                for spike_time_ext_sym_i in self.spike_times_ext[i_symbol]:
-                    ax.plot([spike_time_ext_sym_i, spike_time_ext_sym_i], [0.6, self.p.network.num_neurons+0.4], c="grey",
-                            label="External")
+                # for i_sym in range(self.p.network.num_symbols):
+                if self.p.network.ext_indiv:
+                    spikes_ext_i = deepcopy(self.spike_times_ext_indiv[i_symbol])
+                    spikes_ext_i.insert(0, [])
+                    if spike_offset > 0:
+                        spikes_ext_i = self.add_offset_to_events(spikes_ext_i, spike_offset)
+                    # add negative offset to external spikes during replay for better visibility
+                    if self.network_state == NetworkState.REPLAY:
+                        spikes_ext_i = self.add_offset_to_events(spikes_ext_i, -4)
+                    ax.eventplot(spikes_ext_i, linewidths=self.p_plot.events.events.width,
+                                 linelengths=self.p_plot.events.events.height, label="External", color=f"grey")
+                else:
+                    for spike_time_ext_sym_i in self.spike_times_ext[i_symbol]:
+                        ax.plot([spike_time_ext_sym_i, spike_time_ext_sym_i], [0.6, self.p.network.num_neurons + 0.4],
+                                c="grey",
+                                label="External")
 
                 # Configure the plot layout
                 ax.set_xlim(x_lim_lower, x_lim_upper)
-                ax.set_ylim(-1, self.p.network.num_neurons + 1)
+                # increase upper/lower space if large_layout is set - increases visibility of local/global inh.
+                if large_layout:
+                    ax.set_ylim(-3, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY) + 2)
+                else:
+                    ax.set_ylim(-1, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY))
 
                 if i_seq < 1:
-                    ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2))
                     ax.set_ylabel(id_to_symbol(i_symbol), weight='bold',
                                   fontsize=self.p_plot.events.fontsize.subplot_labels)
 
-                    # Generate y-tick-labels based on number of neurons per symbol
-                    y_tick_labels = ['Inh', '', '0'] + ['' for _ in range(self.p.network.num_neurons - 2)] + [
-                        str(self.p.network.num_neurons - 1)]
-                    ax.set_yticklabels(y_tick_labels, rotation=45, fontsize=self.p_plot.events.fontsize.tick_labels)
+                    # set ticks for y-axis only if enabled
+                    if enable_y_ticks:
+                        y_label = "Symbol & Neuron ID"
+                        if self.network_state == NetworkState.REPLAY and separate_seqs:
+                            ax.tick_params(axis='y', labelsize=self.p_plot.events.fontsize.tick_labels)
+                        else:
+                            ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2
+                                                     + int(self.network_state == NetworkState.REPLAY)))
+                            # Generate y-tick-labels based on number of neurons per symbol
+                            y_tick_labels = ['Inh', '', '0'] + ['' for _ in range(self.p.network.num_neurons - 2)] + [
+                                str(self.p.network.num_neurons - 1)]
+                            if self.network_state == NetworkState.REPLAY:
+                                y_tick_labels += ['Inh-G']
+                            ax.set_yticklabels(y_tick_labels, rotation=45,
+                                               fontsize=self.p_plot.events.fontsize.tick_labels)
+                    else:
+                        y_label = "Neuronal Subpopulations (Locations)"
+                        # for major ticks
+                        ax.set_yticks([])
+                        # for minor ticks
+                        ax.set_yticks([], minor=True)
 
                 if show_grid:
                     ax.grid(True, which='both', axis='both')
@@ -408,38 +742,111 @@ class SHTMBase(ABC):
                 if (x_lim_upper - x_lim_lower) / self.p.encoding.dt_stm > 200:
                     log.info("Minor ticks not set because the number of ticks would be too high.")
                 elif (x_lim_upper - x_lim_lower) / self.p.encoding.dt_stm < 15:
-                    ax.xaxis.set_ticks(np.arange(x_lim_lower, x_lim_upper, self.p.encoding.dt_stm / 2))
+                    if x_tick_step is None:
+                        x_tick_step = self.p.encoding.dt_stm / 2
+                    ax.xaxis.set_ticks(np.arange(x_lim_lower, x_lim_upper, x_tick_step))
+
+                if self.network_state == NetworkState.REPLAY and n_cols > 1 and i_symbol == 0:
+                    ax.set_title(f"Replay {i_seq + 1}", fontsize=self.p_plot.events.fontsize.subplot_labels,
+                                 pad=self.p_plot.events.padding.subplot_title)
 
             ax.tick_params(axis='x', labelsize=self.p_plot.events.fontsize.tick_labels)
 
-            x_lim_lower += (len(self.p.experiment.sequences[0]) - 1) * self.p.encoding.dt_stm + self.p.encoding.dt_seq
+            if self.network_state == NetworkState.REPLAY and n_cols > 1:
+                x_lim_lower += replay_runtime + self.p.encoding.dt_seq
+            else:
+                x_lim_lower += (len(
+                    self.p.experiment.sequences[i_seq]) - 1) * self.p.encoding.dt_stm + self.p.encoding.dt_seq
 
+        # plot updated thresholds before/after replays if enabled
+        if plot_thresholds:
+            for i_rep in range(n_cols + 1):
+                ax_th = axs_th[i_rep]
+                # plot bars for thresholds
+                if i_rep == 0:
+                    height_prev = np.full(self.p.network.num_symbols, self.p.replay.v_thresh)
+                    ax_th.bar(range(self.p.network.num_symbols), color="lightgrey",
+                              width=self.p_plot.thresholds.events.width,
+                              height=np.full(self.p.network.num_symbols, self.p.replay.v_thresh))
+                    ax_th.yaxis.set_ticks([4.5, 5.5, 6.5])
+                    ax_th.yaxis.set_tick_params(labelsize=self.p_plot.thresholds.fontsize.tick_labels)
+                    ax_th.set_ylim(4., 7)
 
+                    ax_th.set_title(f"Initial", fontsize=self.p_plot.thresholds.fontsize.tick_labels,
+                                    pad=self.p_plot.thresholds.padding.subplot_title)
+                else:
+                    height_prev = self.neuron_thresholds_hist[i_rep - 1]
+
+                    ax_th.set_title(f"After replay {i_rep}",
+                                    fontsize=self.p_plot.thresholds.fontsize.title,
+                                    pad=self.p_plot.thresholds.padding.subplot_title)
+
+                heights_back = np.max(np.array([self.neuron_thresholds_hist[i_rep], height_prev]), axis=0)
+                heights_front = np.min(np.array([self.neuron_thresholds_hist[i_rep], height_prev]), axis=0)
+
+                ax_th.bar(range(self.p.network.num_symbols), height=heights_back,
+                          width=self.p_plot.thresholds.events.width, color="lightgrey")
+                ax_th.bar(range(self.p.network.num_symbols), height=heights_front,
+                          width=self.p_plot.thresholds.events.width, color="grey")
+
+                # set tick labels
+                ax_th.xaxis.set_ticks(symbols)
+                y_tick_labels_th = [id_to_symbol(k_sym) for k_sym in symbols]
+                ax_th.set_xticklabels(y_tick_labels_th,
+                                      fontsize=self.p_plot.thresholds.fontsize.tick_labels)
+
+                if i_rep > 0:
+                    ax_th.yaxis.set_visible(False)
 
         if n_cols > 1:
             plt.subplots_adjust(wspace=self.p_plot.events.padding.w_space)
 
-        fig.text(0.5, 0.01, "Time [ms]", ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
+        # figure title
+        fig.suptitle(fig_title, x=self.p_plot.events.location.title_x, y=self.p_plot.events.location.title_y,
+                     fontsize=self.p_plot.events.fontsize.title)
 
-        # Create custom legend for all plots
-        custom_lines = [Line2D([0], [0], color=f"C{n.ID}", label=n.NAME.capitalize(), lw=3) for n in neuron_types]
-        custom_lines.append(Line2D([0], [0], color=f"grey", label="External", lw=3))
+        # x-axis label
+        fig.text(self.p_plot.events.location.label_xaxis_x, self.p_plot.events.location.label_xaxis_y, "Time [ms]",
+                 ha="center", fontsize=self.p_plot.events.fontsize.axis_labels)
 
-        plt.figlegend(handles=custom_lines, loc=(0.715, 0.904), ncol=2, labelspacing=0.2,
-                      fontsize=self.p_plot.events.fontsize.legend, fancybox=True,
-                      borderaxespad=4)
+        # y-axis label
+        fig.text(self.p_plot.events.location.label_yaxis_x, self.p_plot.events.location.label_yaxis_y, y_label,
+                 va="center", rotation="vertical", fontsize=self.p_plot.events.fontsize.axis_labels)
 
-        fig.text(0.05, 0.5, "Symbol & Neuron ID", va="center", rotation="vertical",
-                 fontsize=self.p_plot.events.fontsize.axis_labels)
+        if plot_thresholds:
+            fig.text(self.p_plot.events.location.label_yaxis_x, 0.12, "Thresholds",
+                     va="center", rotation="vertical", fontsize=self.p_plot.events.fontsize.axis_labels)
 
-        fig.suptitle(fig_title, x=0.39, y=0.95, fontsize=self.p_plot.events.fontsize.title)
-        fig.show()
+        # create custom legend for all plots
+        custom_lines = [Line2D([0], [0], color=f"C{n.COLOR_ID}", label=n.NAME_PRINT, lw=4)
+                        for n in neuron_types]
+        if custom_labels is not None:
+            for custom_label in custom_labels:
+                custom_lines.append(Line2D([0], [0], lw=4, **custom_label))
+        plt.figlegend(handles=custom_lines,
+                      loc=(self.p_plot.events.location.legend_x, self.p_plot.events.location.legend_y),
+                      ncol=len(custom_lines), labelspacing=0.2, fontsize=self.p_plot.events.fontsize.legend,
+                      fancybox=True, borderaxespad=4, handlelength=1)
 
+        # figure geometry
+        plt.subplots_adjust(
+            bottom=self.p_plot.events.padding.bottom,
+            top=self.p_plot.events.padding.top,
+        )
+
+        if plot_thresholds:
+            subfigs[1].subplots_adjust(
+                bottom=self.p_plot.thresholds.padding.bottom,
+            )
+
+        # save figure if enabled
         if file_path is not None:
             plt.savefig(f"{file_path}.pdf")
+            plt.savefig(f"{file_path}.svg")
 
-            pickle.dump(fig, open(f'{file_path}.fig.pickle',
-                                  'wb'))  # This is for Python 3 - py2 may need `file` instead of `open`
+            pickle.dump(fig, open(f'{file_path}.fig.pickle', 'wb'))
+        else:
+            fig.show()
 
     def plot_v_exc(self, alphabet_range, neuron_range='all', size=None, neuron_type=NeuronType.Soma, runtime=None,
                    show_legend=False, file_path=None):
@@ -487,6 +894,8 @@ class SHTMBase(ABC):
         ax.set_xlabel("Time [ms]", labelpad=14, fontsize=26)
         ax.set_ylabel("Membrane Voltage [a.u.]", labelpad=14, fontsize=26)
 
+        ax.set_xlim(0, runtime)
+
         if show_legend:
             plt.legend()
 
@@ -503,6 +912,81 @@ class SHTMBase(ABC):
 
     def plot_performance(self, statistic=StatisticalMetrics.MEAN, sequences="statistic", plot_dd=False):
         self.performance.plot(self.p_plot, statistic=statistic, sequences=sequences, plot_dd=plot_dd)
+
+    def times_to_list(self, times, i_sym, ratio_fn_activation=0.5):
+        # List element: tuple(avg_spike_time, i_sym, num_spikes)
+        times_list = list()
+
+        i_sym_times_sum = np.ediff1d(times)
+        group_ids = np.where(i_sym_times_sum > 4)[0]
+        group_ids += 1
+        last_group_start = 0
+        for group_id in group_ids:
+            if len(times[last_group_start:group_id]) >= ratio_fn_activation * self.p.network.pattern_size:
+                times_list.append((np.mean(times[last_group_start:group_id]), i_sym, group_id - last_group_start))
+            last_group_start = group_id
+        if len(times) > 0:
+            if len(times[last_group_start:]) >= ratio_fn_activation * self.p.network.pattern_size:
+                times_list.append((np.mean(times[last_group_start:]), i_sym, len(times) - last_group_start))
+        else:
+            times_list.append((0, i_sym, 0))
+
+        return times_list
+
+    def get_activity(self, ratio_fn_activation=0.5):
+        edge_activity = dict()
+        node_activity = dict()
+
+        soma_times = list()
+        dendrite_times = list()
+        for i_sym in range(self.p.network.num_symbols):
+            i_sym_times_soma = list()
+            i_sym_times_dendrite = list()
+            for i_neuron in range(self.p.network.num_neurons):
+                i_sym_times_soma += list(self.neuron_events[NeuronType.Soma][i_sym][i_neuron])
+                i_sym_times_dendrite += list(self.neuron_events[NeuronType.Dendrite][i_sym][i_neuron])
+
+            soma_times += self.times_to_list(np.sort(np.array(i_sym_times_soma)), i_sym,
+                                             ratio_fn_activation=ratio_fn_activation)
+            dendrite_times += self.times_to_list(np.sort(np.array(i_sym_times_dendrite)), i_sym,
+                                                 ratio_fn_activation=ratio_fn_activation)
+
+        soma_times = [(a, b, c) for a, b, c in soma_times if a > 0]
+        dendrite_times = [(a, b, c) for a, b, c in dendrite_times if a > 0]
+        soma_times.sort()
+        dendrite_times.sort()
+        num_weights_thresh = 1
+
+        for i_soma, soma_i in enumerate(soma_times[:-1]):
+            node_activity[id_to_symbol(soma_i[1])] = SomaState.ACTIVE
+            for i_dend, dend_i in enumerate(dendrite_times):
+                for k_soma, soma_k in enumerate(soma_times[i_soma + 1:]):
+                    if soma_k[1] != dend_i[1]:
+                        continue
+                    # ToDO: remove once self connections have been established
+                    if soma_i[1] == soma_k[1]:
+                        continue
+                    if not 4 < soma_k[0] - dend_i[0] < self.p.neurons.dendrite.tau_dAP:
+                        break
+                    # get weights for connection from soma_i to soma_i+1
+                    i_con = soma_i[1] * (self.p.network.num_symbols - 1) + soma_k[1] - (
+                        1 if soma_k[1] > soma_i[1] else 0)
+                    weights = self.exc_to_exc[i_con].get("weight", format="array")
+                    num_active_connections = np.sum(
+                        np.ceil(np.nansum(weights, axis=0) / self.p.plasticity.w_mature) > num_weights_thresh)
+
+                    if soma_i[0] < dend_i[0] < soma_k[0] and \
+                            num_active_connections >= ratio_fn_activation * self.p.network.pattern_size:
+                        sym_pre = id_to_symbol(soma_i[1])
+                        sym_post = id_to_symbol(soma_k[1])
+                        if dend_i[2] >= self.p.network.pattern_size:
+                            edge_activity[(sym_pre, sym_post)] = DendriteState.PREDICTIVE
+                        elif dend_i[2] > 0:
+                            edge_activity[(sym_pre, sym_post)] = DendriteState.WEAK
+
+            node_activity[id_to_symbol(soma_times[-1][1])] = SomaState.ACTIVE
+
+        return node_activity, edge_activity
 
     def getsize(self):
         """sum size of object & members."""
@@ -562,6 +1046,16 @@ class SHTMBase(ABC):
 
         return num_events
 
+    def print_thresholds(self, symbols=None):
+        if symbols is None:
+            symbols = list(range(self.p.network.num_symbols))
+        print("Membrane thresholds:")
+        for sym_i in symbols:
+            if type(sym_i) is str:
+                sym_i = SYMBOLS[sym_i]
+
+            print(f"{id_to_symbol(sym_i)}: {self.neurons_exc[sym_i].get('V_th')}")
+
     def __str__(self):
         return type(self).__name__
 
@@ -595,7 +1089,7 @@ class SHTMTotal(SHTMBase, ABC):
             self.log_weights = range(self.p.network.num_symbols ** 2 - self.p.network.num_symbols)
 
     def init_connections(self, exc_to_exc=None, exc_to_inh=None, debug=False):
-        super().init_connections()
+        super().init_connections(exc_to_exc=exc_to_exc, exc_to_inh=exc_to_inh)
 
         self.con_plastic = list()
 
@@ -720,6 +1214,7 @@ class SHTMTotal(SHTMBase, ABC):
 
     def _retrieve_neuron_data(self):
         self.neuron_events = dict()
+        self.max_spike_time = 0
 
         for neuron_type in NeuronType.get_all_types():
             self.neuron_events[neuron_type] = list()
@@ -727,6 +1222,12 @@ class SHTMTotal(SHTMBase, ABC):
                 events = self.get_neuron_data(neuron_type, value_type=RecTypes.SPIKES, symbol_id=i_symbol,
                                               dtype=list)
                 self.neuron_events[neuron_type].append(events)
+                for neuron_events in events:
+                    if len(neuron_events) <= 0:
+                        continue
+                    max_spike_time = max(neuron_events)
+                    if max_spike_time > self.max_spike_time:
+                        self.max_spike_time = float(max_spike_time)
 
     def get_spike_times(self, runtime, dt):
         log.detail("Calculating spike times")
@@ -778,7 +1279,7 @@ class SHTMTotal(SHTMBase, ABC):
         return self.con_plastic[con_id].projection.get("weight", format="array")
 
     def run(self, runtime=None, steps=None, plasticity_enabled=True, store_to_cache=False, dyn_exc_inh=False,
-            run_type=RunType.SINGLE):
+            run_type=RunType.SINGLE, num_active_neuron_thresh=None):
         if runtime is None:
             runtime = self.p.experiment.runtime
         if steps is None:
@@ -799,7 +1300,8 @@ class SHTMTotal(SHTMBase, ABC):
         self.p.experiment.runtime = runtime
 
         for t in range(steps):
-            log.info(f'Running emulation step {self.experiment_episodes + t + 1}/{self.experiment_episodes + steps}')
+            log.info(
+                f'Running {self.network_state} step {self.experiment_episodes + t + 1}/{self.experiment_episodes + steps}')
 
             # reset the simulator and the network state if not first run
             if self.run_state:
@@ -815,8 +1317,16 @@ class SHTMTotal(SHTMBase, ABC):
 
             self._retrieve_neuron_data()
 
-            if self.p.performance.compute_performance:
-                self.performance.compute(neuron_events=self.neuron_events, method=self.p.performance.method)
+            if self.network_state == NetworkState.REPLAY:
+                self.neuron_events_hist.append(self.neuron_events)
+
+            if self.p.performance.compute_performance and self.network_state == NetworkState.PREDICTIVE:
+                self.performance.compute(neuron_events=self.neuron_events,
+                                         method=self.p.performance.method)
+
+            # update graph representation
+            new_node_activity, new_edge_activity = self.get_activity()
+            self.map.update_graph(new_node_activity, new_edge_activity)
 
             if plasticity_enabled:
                 if run_type == RunType.MULTI:
@@ -835,8 +1345,13 @@ class SHTMTotal(SHTMBase, ABC):
             if self.p.plasticity.learning_rate_decay is not None:
                 self.p.plasticity.learning_factor *= self.p.plasticity.learning_rate_decay
 
-        # print performance results
-        self.print_performance_results()
+            if self.network_state == NetworkState.REPLAY:
+                self.update_adapt_thresholds(num_active_neuron_thresh=num_active_neuron_thresh)
+                neuron_thresholds = [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)]
+                self.neuron_thresholds_hist.append(neuron_thresholds)
+
+            # print performance results
+            self.print_performance_results(final=False)
 
         self.experiment_episodes += steps
         self.p.experiment.episodes = self.experiment_episodes
@@ -844,15 +1359,19 @@ class SHTMTotal(SHTMBase, ABC):
         if self.p.experiment.save_final or self.p.experiment.save_auto:
             self.save_full_state()
 
-    def print_performance_results(self):
+    def print_performance_results(self, final=False):
         performance_results = self.performance.get_performance_dict(final_result=True,
                                                                     running_avgs=self.p.performance.running_avgs)
-        log.essens(f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
-                   f"Epochs:  {performance_results['num-epochs']}")
-
+        if final:
+            log.essens(f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
+                       f"Epochs:  {performance_results['num-epochs']}")
+        else:
+            log.essens(f"Performance:  {performance_results['error_last']}  |  "
+                       f"Performance (0.5):  {performance_results['error_running-avg-0.5']}  |  "
+                       f"Epochs:  {performance_results['num-epochs']}")
 
     def __run_plasticity_singular(self, runtime, sim_start_time, dyn_exc_inh=False):
-        log.info("Starting plasticity calculations")
+        log.debug("Starting plasticity calculations")
 
         active_synapse_post = np.zeros((self.p.network.num_symbols, self.p.network.num_neurons))
 
@@ -875,7 +1394,7 @@ class SHTMTotal(SHTMBase, ABC):
         self.__update_dendritic_trace()
 
     def __run_plasticity_parallel(self, runtime, sim_start_time, dyn_exc_inh=False):
-        log.info("Starting plasticity calculations")
+        log.debug("Starting plasticity calculations")
 
         active_synapse_post = np.zeros((self.p.network.num_symbols, self.p.network.num_neurons))
 
@@ -936,7 +1455,8 @@ class SHTMTotal(SHTMBase, ABC):
                     setattr(self.con_plastic[new_con_plastic.id], obj_name, getattr(new_con_plastic, obj_name))
 
     def save_config(self):
-        folder_path = get_experiment_folder(self, self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+        folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                            experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
         file_path = join(folder_path, f"config_network.yaml")
 
@@ -944,7 +1464,8 @@ class SHTMTotal(SHTMBase, ABC):
             yaml.dump(self.p.dict(exclude_none=True), file)
 
     def save_performance_data(self):
-        folder_path = get_experiment_folder(self, self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+        folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                            experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
         file_path = join(folder_path, "performance")
 
@@ -952,7 +1473,8 @@ class SHTMTotal(SHTMBase, ABC):
 
     def save_network_data(self):
         # ToDo: Check if this works with bss2
-        folder_path = get_experiment_folder(self, self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+        folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                            experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
 
         # Save weights
@@ -992,8 +1514,55 @@ class SHTMTotal(SHTMBase, ABC):
 
         np.savez(file_path, **plasticity_dict)
 
+    def save_plot_events(self, neuron_types="all", symbols="all", size=None, x_lim_lower=None, x_lim_upper=None,
+                         seq_start=0, seq_end=None, fig_title="", run_id=None, show_grid=False,
+                         separate_seqs=False, replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True,
+                         x_tick_step=None, plot_thresholds=False):
+        # set plot_name and retrieve experiment folder given the current config
+        plot_name = f"plot_events_{self.network_state.lower()}"
+        exp_folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
+                                                experiment_map=self.p.experiment.map_name,
+                                                experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
+
+        # load all file/folder names that match pattern of plot_name in exp_folder_path
+        files = glob.glob(f"{exp_folder_path}/{plot_name}*")
+
+        # find last plot file, i.e. with highest id in the files list
+        last_plot_id = 0
+        for file_i in files:
+            try:
+                plot_id_i = int(os.path.basename(file_i).split('_')[-1].split('.')[0])
+            except ValueError:
+                log.warning(
+                    f"Plot id '{os.path.basename(file_i).split('_')[-1].split('.')[0]}' is not an int. Skipping file.")
+                continue
+            if plot_id_i > last_plot_id:
+                last_plot_id = plot_id_i
+        last_plot_id += 1
+
+        # generate new plot name and path based on the calculated id
+        plot_name = f"{plot_name}_{last_plot_id:02d}"
+        plot_path = join(exp_folder_path, plot_name)
+
+        # plot events and save the plot to the given path
+        self.plot_events(neuron_types=neuron_types, symbols=symbols, size=size, x_lim_lower=x_lim_lower,
+                         x_lim_upper=x_lim_upper, seq_start=seq_start, seq_end=seq_end, fig_title=fig_title,
+                         run_id=run_id, show_grid=show_grid, separate_seqs=separate_seqs, replay_runtime=replay_runtime,
+                         plot_dendritic_trace=plot_dendritic_trace, enable_y_ticks=enable_y_ticks,
+                         x_tick_step=x_tick_step, file_path=plot_path, plot_thresholds=plot_thresholds
+                         )
+
+    def save_plot_graph(self, history_range=None, fps=1, only_traversable=True, arrows=True,
+                        label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False):
+        self.map.plot_graph_history(self, history_range=history_range, fps=fps, only_traversable=only_traversable,
+                                    arrows=arrows, label_type=label_type, empty_label=empty_label, title=title,
+                                    show_plot=show_plot, experiment_num=self.experiment_num, save_plot=True)
+
     def save_full_state(self, running_avg_perc=0.5, optimized_parameter_ranges=None, save_setup=False):
         log.debug("Saving full state of network and experiment.")
+
+        if self.network_state == NetworkState.REPLAY:
+            self.p.experiment.id += f"_{NetworkState.REPLAY}"
 
         if (self.p.experiment.type in
                 [ExperimentType.EVAL_MULTI, ExperimentType.OPT_GRID, ExperimentType.OPT_GRID_MULTI]):
@@ -1001,7 +1570,8 @@ class SHTMTotal(SHTMBase, ABC):
                 self.experiment_num = save_experimental_setup(net=self, experiment_num=self.experiment_num,
                                                               experiment_subnum=self.experiment_subnum,
                                                               instance_id=self.instance_id,
-                                                              optimized_parameter_ranges=optimized_parameter_ranges)
+                                                              optimized_parameter_ranges=optimized_parameter_ranges,
+                                                              experiment_map=self.p.experiment.map_name)
             save_instance_setup(net=self.__str__(), parameters=self.p,
                                 performance=self.performance.get_performance_dict(final_result=True,
                                                                                   running_avgs=self.p.performance.running_avgs,
@@ -1012,16 +1582,21 @@ class SHTMTotal(SHTMBase, ABC):
         else:
             self.experiment_num = save_experimental_setup(net=self, experiment_num=self.experiment_num,
                                                           experiment_subnum=self.experiment_subnum,
-                                                          instance_id=self.instance_id)
+                                                          instance_id=self.instance_id,
+                                                          experiment_map=self.p.experiment.map_name)
 
         self.save_config()
         self.save_performance_data()
         self.save_network_data()
+        self.map.plot_graph_history(self, experiment_num=self.experiment_num, arrows=True, save_plot=True,
+                                    show_plot=False)
 
-    def load_network_data(self, experiment_type, experiment_num, experiment_subnum=None, instance_id=None):
+    def load_network_data(self, experiment_type, experiment_num, experiment_map=None, experiment_subnum=None,
+                          instance_id=None):
         # ToDo: Check if this works with bss2
-        folder_path = get_experiment_folder(self, experiment_type, self.p.experiment.id, experiment_num,
-                                            experiment_subnum=experiment_subnum, instance_id=instance_id)
+        folder_path = get_experiment_folder(experiment_type, self.p.experiment.id, experiment_num,
+                                            experiment_map=experiment_map, experiment_subnum=experiment_subnum,
+                                            instance_id=instance_id)
 
         # Load weights
         file_path = join(folder_path, "weights.npz")
@@ -1049,28 +1624,31 @@ class SHTMTotal(SHTMBase, ABC):
         return data_weights, data_plasticity
 
     @staticmethod
-    def load_full_state(network_type, experiment_id, experiment_num, experiment_type=ExperimentType.EVAL_SINGLE,
-                        experiment_subnum=None, instance_id=None, debug=False):
+    def load_full_state(network_type, experiment_id, experiment_num, experiment_map=None,
+                        experiment_type=ExperimentType.EVAL_SINGLE,
+                        experiment_subnum=None, instance_id=None, debug=False, custom_params=None):
         log.debug("Loading full state of network and experiment.")
 
         p = NetworkParameters(network_type=network_type)
         p.load_experiment_params(experiment_type=experiment_type, experiment_id=experiment_id,
-                                 experiment_num=experiment_num, experiment_subnum=experiment_subnum,
-                                 instance_id=instance_id)
+                                 experiment_map=experiment_map, experiment_num=experiment_num,
+                                 experiment_subnum=experiment_subnum, instance_id=instance_id,
+                                 custom_params=custom_params)
 
         shtm = network_type(p=p)
 
         shtm.p_plot = PlottingParameters(network_type=network_type)
-        shtm.p_plot.load_default_params()
+        shtm.p_plot.load_default_params(network_state=shtm.network_state, map_name=shtm.p.experiment.map_name)
 
-        shtm.performance.load_data(shtm, experiment_type, experiment_id, experiment_num,
+        shtm.performance.load_data(shtm, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
                                    experiment_subnum=experiment_subnum, instance_id=instance_id)
         data_weights, data_plasticity = shtm.load_network_data(experiment_type, experiment_num,
+                                                               experiment_map=experiment_map,
                                                                experiment_subnum=experiment_subnum,
                                                                instance_id=instance_id)
 
         shtm.init_neurons()
-        shtm.init_connections(debug=debug)
+        shtm.init_connections(exc_to_exc=data_weights["exc_to_exc"], exc_to_inh=data_weights["exc_to_inh"], debug=debug)
 
         for i_con_plastic in range(len(shtm.con_plastic)):
             for var_name, var_value in data_plasticity.items():
@@ -1078,376 +1656,10 @@ class SHTMTotal(SHTMBase, ABC):
 
         shtm.init_external_input()
 
+        # this network has been run before, so set run-state to true
+        shtm.run_state = True
+
+        # set experiment number to given number
+        shtm.experiment_num = experiment_num
+
         return shtm
-
-
-class Plasticity(ABC):
-    def __init__(self, projection: Projection, post_somas, shtm, index, proj_post_soma_inh=None, debug=False,
-                 learning_factor=None, permanence_init_min=None, permanence_init_max=None, permanence_max=None,
-                 permanence_threshold=None, w_mature=None, y=None, lambda_plus=None, weight_learning=None,
-                 weight_learning_scale=None, lambda_minus=None, lambda_h=None, target_rate_h=None, tau_plus=None,
-                 tau_h=None, delta_t_min=None, delta_t_max=None, dt=None, correlation_threshold=None,
-                 homeostasis_depression_rate=None, **kwargs):
-        # custom objects
-        self.projection = projection
-        self.proj_post_soma_inh = proj_post_soma_inh
-        self.shtm: SHTMTotal = shtm
-        self.post_somas = post_somas
-
-        # editable/changing variables
-        if permanence_init_min == permanence_init_max:
-            self.permanence_min = np.ones(shape=(len(self.projection),), dtype=float) * permanence_init_min
-        else:
-            self.permanence_min = np.asarray(np.random.randint(permanence_init_min, permanence_init_max,
-                                                               size=(len(self.projection),)), dtype=float)
-        self.permanence = copy.copy(self.permanence_min)
-        self.permanences = None
-        self.weights = None
-        self.weight_learning = None
-        self.weight_learning_scale = None
-        self.x = np.zeros((len(self.projection.pre)))
-        self.z = np.zeros((len(self.projection.post)))
-
-        self.debug = debug
-        self.id = index
-        self.projection_weight = None
-
-        # parameters - loaded from file
-        self.permanence_max = permanence_max
-        self.w_mature = w_mature
-        self.tau_plus = tau_plus
-        self.tau_h = tau_h
-        self.target_rate_h = target_rate_h
-        self.y = y
-        self.delta_t_min = delta_t_min
-        self.delta_t_max = delta_t_max
-        self.dt = dt
-        self.permanence_threshold = np.ones((len(self.projection))) * permanence_threshold
-        self.correlation_threshold = correlation_threshold
-        self.lambda_plus = lambda_plus * learning_factor
-        self.lambda_minus = lambda_minus * learning_factor
-        self.lambda_h = lambda_h * learning_factor
-        self.homeostasis_depression_rate = homeostasis_depression_rate
-
-        self.learning_rules = {"original": self.rule, "bss2": self.rule_bss2}
-
-        self.symbol_id_pre = SYMBOLS[symbol_from_label(self.projection.label, ID_PRE)]
-        self.symbol_id_post = SYMBOLS[symbol_from_label(self.projection.label, ID_POST)]
-
-        self.connections = list()
-
-        self.int_conversion = "int" in self.shtm.p.plasticity.type
-        if self.int_conversion:
-            self.scale_permanence(min_value=0, max_value=256)
-
-    def scale_permanence(self, min_value, max_value):
-        factor = max_value/self.permanence_max
-        self.permanence_min = np.asarray(self.permanence_min * factor, dtype=int)
-        self.permanence = copy.copy(self.permanence_min)
-
-        self.permanence_max = int(max_value)
-        self.permanence_threshold = np.ones((len(self.projection)), dtype=int) * int(max_value/2)
-
-        # self.target_rate_h *= max_value
-        # self.correlation_threshold *= max_value
-
-    def rule(self, permanence, permanence_threshold, x, z, runtime, permanence_min,
-             neuron_spikes_pre, neuron_spikes_post_soma, neuron_spikes_post_dendrite,
-             delay, sim_start_time=0.0):
-        last_spike_pre = 0
-
-        neuron_spikes_pre = np.array(neuron_spikes_pre)
-        neuron_spikes_post_soma = np.array(neuron_spikes_post_soma)
-        neuron_spikes_post_dendrite = np.array(neuron_spikes_post_dendrite)
-
-        permanence_before = permanence
-
-        # log.debug(f"{self.id}  permanence before: {permanence}")
-
-        # loop through pre-synaptic spikes
-        for spike_pre in neuron_spikes_pre:
-            # calculate temporary x/z value (pre-synaptic/post-dendritic decay)
-            x = x * np.exp(-(spike_pre - last_spike_pre) / self.tau_plus) + 1.0
-
-            # loop through post-synaptic spikes between pre-synaptic spikes
-            for spike_post in neuron_spikes_post_soma:
-                spike_dt = (spike_post + delay) - spike_pre
-
-                # log.debug(f"{self.id}  spikes: {spike_pre}, {spike_post}, {spike_dt}")
-
-                # check if spike-dif is in boundaries
-                if self.delta_t_min < spike_dt < self.delta_t_max:
-                    # calculate temporary x value (pre synaptic decay)
-                    x_tmp = x * np.exp(-spike_dt / self.tau_plus)
-                    z_tmp = calculate_trace(z, sim_start_time, spike_post, neuron_spikes_post_dendrite,
-                                            self.tau_h)
-
-                    # hebbian learning
-                    permanence = self.__facilitate(permanence, x_tmp)
-                    d_facilitate = permanence - permanence_before
-                    # log.debug(f"{self.id}  d_permanence facilitate: {d_facilitate}")
-                    permanence_before = permanence
-
-                    permanence = self.__homeostasis_control(permanence, z_tmp, permanence_min)
-                    # if permanence - permanence_before < 0:
-                    #     log.debug(f"{self.id}  d_permanence homeostasis: {permanence - permanence_before}")
-                    # if self.debug and permanence - permanence_before < 0:
-                        # log.info(f"{self.id}  spikes: {spike_pre}, {spike_post}, {spike_dt}")
-                        # log.info(f"{self.id}  d_permanence facilitate: {d_facilitate}")
-                        # log.info(f"{self.id}  d_permanence homeostasis: {permanence - permanence_before}")
-                    permanence_before = permanence
-
-            permanence = self.__depress(permanence, permanence_min)
-            last_spike_pre = spike_pre
-            # log.debug(f"{self.id}  permanence depression: {permanence - permanence_before}")
-
-        # log.debug(f"{self.id}  permanence after: {permanence}")
-
-        # update x (kplus) and z
-        x = x * np.exp(-(runtime - last_spike_pre) / self.tau_plus)
-
-        if permanence >= permanence_threshold:
-            mature = True
-        else:
-            mature = False
-
-        return permanence, x, mature
-
-    def __facilitate(self, permanence, x):
-        mu = 0
-        clip = np.power(1.0 - (permanence / self.permanence_max), mu)
-        permanence_norm = (permanence / self.permanence_max) + (self.lambda_plus * x * clip)
-        return min(permanence_norm * self.permanence_max, self.permanence_max)
-
-    def __homeostasis_control(self, permanence, z, permanence_min):
-        permanence = permanence + self.lambda_h * (self.target_rate_h - z) * self.permanence_max
-        return max(min(permanence, self.permanence_max), permanence_min)
-
-    def __depress(self, permanence, permanence_min):
-        permanence = permanence - self.lambda_minus * self.permanence_max
-        return max(permanence_min, permanence)
-
-    def __to_int(self, value, precision=256, amplitude=1.5):
-        return int(value * precision)
-
-    def rule_bss2(self, permanence, permanence_threshold, x, z, runtime, permanence_min,
-                  neuron_spikes_pre, neuron_spikes_post_soma, neuron_spikes_post_dendrite,
-                  delay, sim_start_time=0.0):
-        neuron_spikes_pre = np.array(neuron_spikes_pre)
-        neuron_spikes_post_soma = np.array(neuron_spikes_post_soma)
-        neuron_spikes_post_dendrite = np.array(neuron_spikes_post_dendrite)
-
-        permanence_before = permanence
-
-        # log.debug(f"{self.id}  permanence before: {permanence}")
-
-        x = 0
-        z_tmp = 0
-
-        # Calculate accumulated x
-        spike_pairs_soma_soma = 0
-        for spike_pre in neuron_spikes_pre:
-            for spike_post in neuron_spikes_post_soma:
-                spike_dt = spike_post - spike_pre
-
-                # ToDo: Update rule based on actual trace calculation from BSS-2
-                if spike_dt >= 0:
-                    spike_pairs_soma_soma += 1
-                    # log.debug(f"{self.id}  spikes (ss): {spike_pre}, {spike_post}, {spike_dt}")
-                    # if self.int_conversion:
-                    #     x += self.__to_int(np.exp(-spike_dt / self.tau_plus))
-                    # else:
-                    x += np.exp(-spike_dt / self.tau_plus)
-
-
-        # Calculate accumulated z
-        spike_pairs_dend_soma = 0
-        for spike_post_dendrite in neuron_spikes_post_dendrite:
-            for spike_post in neuron_spikes_post_soma:
-                spike_dt = spike_post - spike_post_dendrite
-
-                # ToDo: Update rule based on actual trace calculation from BSS-2
-                if spike_dt >= 0:
-                    spike_pairs_dend_soma += 1
-                    # log.debug(f"{self.id}  spikes (ds): {spike_post_dendrite}, {spike_post}, {spike_dt}")
-                    # if self.int_conversion:
-                    #     z_tmp += self.__to_int(np.exp(-spike_dt / self.tau_plus))
-                    # else:
-                    z_tmp += np.exp(-spike_dt / self.tau_plus)
-
-        # if z_tmp > 0:
-        #     log.debug(f"{self.id}  x: {x},  z: {z_tmp}")
-
-        # Calculation of z based on x
-        # z = np.exp(-(-self.tau_plus*z_mean)/self.tau_h) * spike_pairs_dend_soma
-        # Calculation of z using only number of pre-post spike pairs
-        # z = spike_pairs_dend_soma
-        # Calculation of z according to current BSS-2 implementation
-        z = z_tmp
-
-        # trace_threshold = np.exp(-self.delta_t_max / self.tau_plus)
-
-        # log.debug(f"{self.id} permanence_threshold: {trace_threshold}")
-        # log.debug(f"{self.id} x: {x},   x_mean: {x_mean}")
-        # log.debug(f"{self.id} z: {z},   z_mean: {z_mean}")
-
-        # hebbian learning
-        # Only run facilitate/homeostasis if a spike pair exists with a delta within boundaries,
-        # i.e. x or z > 0
-        if x > self.correlation_threshold:
-            permanence = self.__facilitate_bss2(permanence, x)
-        log.debug(f"{self.id}  d_permanence facilitate: {permanence - permanence_before}")
-        permanence_before = permanence
-
-        # if self.int_conversion:
-        #     permanence = int(np.round(permanence))
-
-        if x > self.correlation_threshold:
-            permanence = self.__homeostasis_control_bss2(permanence, z, permanence_min)
-        # if permanence - permanence_before < 0:
-        # if z > 0:
-        log.debug(f"{self.id}  d_permanence homeostasis: {permanence - permanence_before}")
-        permanence_before = permanence
-
-        # if self.int_conversion:
-        #     permanence = int(np.round(permanence))
-
-        permanence = self.__depress_bss2(permanence, permanence_min, num_spikes=len(neuron_spikes_pre))
-        log.debug(f"{self.id}  permanence depression: {permanence - permanence_before}")
-
-        if self.int_conversion:
-            permanence = int(np.round(permanence))
-
-        # log.debug(f"{self.id}  permanence after: {permanence}")
-
-        return permanence, x, permanence >= permanence_threshold
-
-    def __facilitate_bss2(self, permanence, x):
-        d_permanence = self.lambda_plus * x
-        # if not self.int_conversion:
-        d_permanence *= self.permanence_max
-        permanence += d_permanence
-        return min(permanence, self.permanence_max)
-
-    def __homeostasis_control_bss2(self, permanence, z, permanence_min):
-        z_prime = self.target_rate_h - z
-        # if self.int_conversion:
-        #     z_prime /= 256
-        if z_prime < 0:
-            z_prime = -np.exp(-z_prime/self.homeostasis_depression_rate)
-
-        permanence = permanence + self.lambda_h * z_prime * self.permanence_max
-        return max(min(permanence, self.permanence_max), permanence_min)
-
-    def __depress_bss2(self, permanence, permanence_min, num_spikes):
-        permanence = permanence - self.lambda_minus * self.permanence_max * num_spikes
-        return max(permanence_min, permanence)
-
-    def enable_permanence_logging(self):
-        self.permanences = [np.copy(self.permanence)]
-
-    def enable_weights_logging(self):
-        self.weights = [np.copy(self.projection.get("weight", format="array").flatten())]
-
-    def get_pre_symbol(self):
-        return symbol_from_label(self.projection.label, ID_PRE)
-
-    def get_post_symbol(self):
-        return symbol_from_label(self.projection.label, ID_POST)
-
-    def get_connection_ids(self, connection_id):
-        connection_ids = (f"{self.get_connection_id_pre(self.get_connections()[connection_id])}>"
-                          f"{self.get_connection_id_post(self.get_connections()[connection_id])}")
-        return connection_ids
-
-    @abstractmethod
-    def get_connection_id_pre(self, connection):
-        pass
-
-    @abstractmethod
-    def get_connection_id_post(self, connection):
-        pass
-
-    def get_all_connection_ids(self):
-        connection_ids = []
-        for con in self.get_connections():
-            connection_ids.append(f"{self.get_connection_id_pre(con)}>{self.get_connection_id_post(con)}")
-        return connection_ids
-
-    @abstractmethod
-    def get_connections(self):
-        pass
-
-    def init_connections(self):
-        for c, connection in enumerate(self.get_connections()):
-            i = self.get_connection_id_post(connection)
-            j = self.get_connection_id_pre(connection)
-            self.connections.append([c, j, i])
-
-    def __call__(self, runtime: float, sim_start_time=0.0, q_plasticity=None):
-        if self.connections is None or len(self.connections) <= 0:
-            self.init_connections()
-
-        spikes_pre = self.shtm.neuron_events[NeuronType.Soma][self.symbol_id_pre]
-        spikes_post_dendrite = self.shtm.neuron_events[NeuronType.Dendrite][self.symbol_id_post]
-        spikes_post_soma = self.shtm.neuron_events[NeuronType.Soma][self.symbol_id_post]
-
-        weight = self.projection.get("weight", format="array")
-        weight_before = np.copy(weight)
-
-        for c, j, i in self.connections:
-            neuron_spikes_pre = spikes_pre[j]
-            neuron_spikes_post_dendrite = spikes_post_dendrite[i]
-            neuron_spikes_post_soma = spikes_post_soma[i]
-            z = self.shtm.trace_dendrites[self.symbol_id_post, i]
-
-            # if self.debug:
-            #     log.debug(f"Permanence calculation for connection {c} [{i}, {j}]")
-            #     log.debug(f"Spikes pre [soma]: {neuron_spikes_pre}")
-            #     log.debug(f"Spikes post [dend]: {neuron_spikes_post_dendrite}")
-            #     log.debug(f"Spikes post [soma]: {neuron_spikes_post_soma}")
-
-            permanence, x, mature = (self.learning_rules[self.shtm.p.plasticity.type.split("_")[0]]
-                                     (permanence=self.permanence[c],
-                                      permanence_threshold=self.permanence_threshold[c],
-                                      runtime=runtime, x=self.x[j], z=z,
-                                      permanence_min=self.permanence_min[c],
-                                      neuron_spikes_pre=neuron_spikes_pre,
-                                      neuron_spikes_post_soma=neuron_spikes_post_soma,
-                                      neuron_spikes_post_dendrite=neuron_spikes_post_dendrite,
-                                      delay=self.shtm.p.synapses.delay_exc_exc,
-                                      sim_start_time=sim_start_time))
-
-            self.permanence[c] = permanence
-            self.x[j] = x
-
-            if mature:
-                weight_offset = (
-                                            permanence - self.permanence_threshold) * self.weight_learning_scale if self.weight_learning else 0
-                weight[j, i] = self.w_mature + weight_offset
-                if self.proj_post_soma_inh is not None:
-                    weight_inh = self.proj_post_soma_inh.get("weight", format="array")
-                    weight_inh[i, :] = 250
-                    # log.debug(f"+ | W_inh[{i}] = {weight_inh.flatten()}")
-                    self.proj_post_soma_inh.set(weight=weight_inh)
-            else:
-                weight[j, i] = 0
-                if self.proj_post_soma_inh is not None:
-                    weight_inh = self.proj_post_soma_inh.get("weight", format="array")
-                    weight_inh_old = np.copy(weight_inh)
-                    weight_inh[i, :] = 0
-                    # if np.sum(weight_inh_old.flatten() - weight_inh.flatten()) == 0:
-                    #     log.debug(f"- | W_inh[{i}] = {weight_inh.flatten()}")
-                    self.proj_post_soma_inh.set(weight=weight_inh)
-
-        weight_diff = weight-weight_before
-        if np.logical_and(weight_diff != 0, ~np.isnan(weight_diff)).any():
-            self.projection.set(weight=weight)
-
-        if self.permanences is not None:
-            self.permanences.append(np.copy(np.round(self.permanence, 6)))
-        if self.weights is not None:
-            self.weights.append(
-                np.copy(np.round(self.projection.get("weight", format="array").flatten(), 6)))
-
-        log.debug(f'Finished execution of plasticity for {self.id}')

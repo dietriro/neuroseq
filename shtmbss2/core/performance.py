@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from shtmbss2.common.config import *
 from shtmbss2.core.logging import log
 from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
-from shtmbss2.core.helpers import moving_average
+from shtmbss2.core.helpers import moving_average, id_to_symbol
 from shtmbss2.common.config import NeuronType
 from shtmbss2.core.data import get_experiment_folder
 from shtmbss2.common.plot import plot_panel_label
@@ -50,7 +50,7 @@ class Performance(ABC):
         pass
 
     def compute(self, neuron_events, method=PerformanceType.ALL_SYMBOLS, t_min=None):
-        log.info(f"Computing performance for {len(self.p.experiment.sequences)} Sequences.")
+        log.debug(f"Computing performance for {len(self.p.experiment.sequences)} Sequences.")
 
         ratio_fp_activation = 0.5
         ratio_fn_activation = 0.5
@@ -60,6 +60,9 @@ class Performance(ABC):
 
         t_min_org = t_min
         t_max_next = 0
+
+        edge_activity = dict()
+        node_activity = dict()
 
         for i_seq, seq in enumerate(self.p.experiment.sequences):
             seq_performance = {metric: list() for metric in PerformanceMetrics.get_all()}
@@ -86,15 +89,20 @@ class Performance(ABC):
                 t_max_next = t_max + self.p.encoding.dt_stm
 
                 for i_symbol in range(self.p.network.num_symbols):
-                    # get dAP's per subpopulation
+                    # get dAP's for subpopulation during current time window
                     num_dAPs[i_symbol] = np.sum([t_min < item < t_max for sublist in
                                                  neuron_events[NeuronType.Dendrite][i_symbol] for item in
                                                  sublist])
 
-                    # get somatic spikes per subpopulation
+                    # get somatic spikes for subpopulation during next time window
                     num_som_spikes[i_symbol] = np.sum([t_min_next < item < t_max_next for sublist in
                                                        neuron_events[NeuronType.Soma][i_symbol] for item in
                                                        sublist])
+
+                    if num_som_spikes[i_symbol] >= (ratio_fn_activation * self.p.network.pattern_size):
+                        node_activity[id_to_symbol(i_symbol)] = SomaState.ACTIVE
+                    elif id_to_symbol(i_symbol) not in node_activity.keys():
+                        node_activity[id_to_symbol(i_symbol)] = SomaState.INACTIVE
 
                     if (i_symbol != SYMBOLS[element] and
                             num_dAPs[i_symbol] >= (ratio_fp_activation * self.p.network.pattern_size)):
@@ -103,6 +111,11 @@ class Performance(ABC):
                           num_dAPs[i_symbol] >= (ratio_fn_activation * self.p.network.pattern_size)):
                         counter_correct += 1
                         output[i_symbol] = 1
+                        edge_activity[(seq[i_element], element)] = DendriteState.PREDICTIVE
+                    elif (i_symbol == SYMBOLS[element] and
+                          0 < num_dAPs[i_symbol] < (ratio_fn_activation * self.p.network.pattern_size)):
+                        edge_activity[(seq[i_element], element)] = DendriteState.WEAK
+
 
                 # num_dAPs_total += num_dAPs
 
@@ -141,6 +154,8 @@ class Performance(ABC):
         # add dendritic duplicate data
         for i_seq in range(len(self.p.experiment.sequences)):
             self.add_data_point(np.mean(num_dAPs_sum), PerformanceMetrics.DD, sequence_id=i_seq)
+
+        return node_activity, edge_activity
 
 
     def plot(self, plt_config, statistic, sequences="mean", fig_title="", plot_dd=False):
@@ -250,11 +265,14 @@ class Performance(ABC):
         axs[0].legend(["Prediction error"], fontsize=plt_config.performance.fontsize.legend)
         axs[1].legend(["False-positives", "False-negatives"], fontsize=plt_config.performance.fontsize.legend)
         axs[2].legend(["Target", "Actual"], fontsize=plt_config.performance.fontsize.legend)
+        axs[3].legend(["Duplicate dAP's"], fontsize=plt_config.performance.fontsize.legend)
 
         return axs
 
-    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
-        folder_path = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
+    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_map=None,
+                  experiment_subnum=None, instance_id=None):
+        folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                            experiment_map=experiment_map,
                                             experiment_subnum=experiment_subnum, instance_id=instance_id)
 
         file_path = join(folder_path, "performance.npz")
@@ -279,10 +297,11 @@ class PerformanceSingle(Performance):
         for metric_name in PerformanceMetrics.get_all():
             self.data[metric_name] = [[] for _ in self.p.experiment.sequences]
 
-    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
+    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_map=None,
+                  experiment_subnum=None, instance_id=None):
         self.init_data()
-        super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_subnum=experiment_subnum,
-                          instance_id=instance_id)
+        super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
+                          experiment_subnum=experiment_subnum, instance_id=instance_id)
 
     def get_statistic(self, statistic, metric, episode='all', percentile=None):
         if 'all' in episode:
@@ -317,7 +336,7 @@ class PerformanceSingle(Performance):
                 # learning not finished yet
                 performance[f"num-epochs"] = -1
             else:
-                performance[f"num-epochs"] = len(error_max_reverse) - first_zero_id
+                performance[f"num-epochs"] = len(error_max_reverse) - first_zero_id + 1
             # add data from all metrics
             for metric_name in PerformanceMetrics.get_all():
                 metric = self.get_all(metric_name)
@@ -396,11 +415,12 @@ class PerformanceMulti(Performance):
                 data_inst[metric_name] = [[] for _ in self.p.experiment.sequences]
             self.data.append(data_inst)
 
-    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
+    def load_data(self, net, experiment_type, experiment_id, experiment_num, experiment_map=None,
+                  experiment_subnum=None, instance_id=None):
         self.init_data()
 
-        folder_path = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
-                                            experiment_subnum=experiment_subnum)
+        folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                            experiment_map=experiment_map, experiment_subnum=experiment_subnum)
 
         for i_inst in range(self.num_instances):
             inst_folder_name = f"{i_inst:02d}"
@@ -409,8 +429,8 @@ class PerformanceMulti(Performance):
             if not os.path.exists(inst_folder_path):
                 raise FileNotFoundError(f"Instance folder does not exist: {inst_folder_path}")
 
-            super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_subnum=experiment_subnum,
-                              instance_id=i_inst)
+            super().load_data(net, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
+                              experiment_subnum=experiment_subnum, instance_id=i_inst)
 
     def get_statistic(self, statistic, metric, episode='all', percentile=None):
         if 'all' in episode:

@@ -3,7 +3,7 @@ from abc import ABC
 
 from shtmbss2.common.config import *
 from shtmbss2.core.logging import log
-from shtmbss2.core.data import load_config, get_experiment_folder, load_yaml
+from shtmbss2.core.data import load_config, get_experiment_folder, load_yaml, gen_map_name
 
 
 class ParameterGroup:
@@ -70,8 +70,15 @@ class Parameters(ParameterGroup):
 
         log.debug(f"Successfully set parameters")
 
-    def load_default_params(self, custom_params=None):
-        default_params = load_config(self.network_type, config_type=self.config_type)
+    def load_default_params(self, network_state=None, map_name=None, custom_params=None, custom_path=None):
+        if custom_path is not None:
+            if not os.path.exists(custom_path):
+                log.error(f"File '{custom_path}' does not exist.")
+                return
+            default_params = load_yaml(custom_path)
+        else:
+            default_params = load_config(self.network_type, config_type=self.config_type, network_state=network_state,
+                                         map_name=map_name)
         self.set_params(self, default_params)
 
         log.debug(f"Successfully loaded parameters for '{self.network_type}'")
@@ -79,15 +86,15 @@ class Parameters(ParameterGroup):
         if custom_params is not None:
             self.set_custom_params(custom_params)
 
-    def load_experiment_params(self, experiment_type, experiment_id, experiment_num, experiment_subnum=None,
-                               instance_id=None, custom_params=None):
+    def load_experiment_params(self, experiment_type, experiment_id, experiment_num, experiment_map,
+                               experiment_subnum=None, instance_id=None, custom_params=None):
         if ((experiment_type == ExperimentType.EVAL_MULTI or experiment_type == ExperimentType.OPT_GRID_MULTI)
                 and instance_id is None):
             instance_id = 0
 
-        experiment_folder_path = get_experiment_folder(self.network_type, experiment_type, experiment_id,
-                                                       experiment_num, experiment_subnum=experiment_subnum,
-                                                       instance_id=instance_id)
+        experiment_folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                                       experiment_map=experiment_map,
+                                                       experiment_subnum=experiment_subnum, instance_id=instance_id)
 
         saved_params = load_yaml(experiment_folder_path, f"config_{self.config_type}.yaml")
 
@@ -138,6 +145,7 @@ class NetworkParameters(Parameters):
         self.backend = NetworkParameterGroups.Backend()
         self.encoding = NetworkParameterGroups.Encoding()
         self.plasticity = NetworkParameterGroups.Plasticity()
+        self.replay = NetworkParameterGroups.Replay()
         self.neurons = NetworkParameterGroups.Neurons()
         self.synapses = NetworkParameterGroups.Synapses()
         self.calibration = NetworkParameterGroups.Calibration()
@@ -146,11 +154,36 @@ class NetworkParameters(Parameters):
 
         self.config_type = ConfigType.NETWORK
 
+    def load_default_params(self, custom_params=None):
+        super().load_default_params(custom_params=custom_params)
+
+        # load sequences from config file if not set manually
+        if self.experiment.sequences is None:
+            self.load_sequences_from_config()
+
+        # set number of symbols dynamically if not set manually
+        if self.network.num_symbols is None:
+            max_symbol = ''
+            for seq_i in self.experiment.sequences:
+                max_symbol = max(seq_i + [max_symbol])
+            self.network.num_symbols = SYMBOLS[max_symbol] + 1
+
+    def load_sequences_from_config(self):
+        environments = load_yaml(PATH_CONFIG, f"{RuntimeConfig.config_prefix}_environments.yaml")
+        map_name = gen_map_name(self.experiment.map_name)
+        if map_name in environments.keys():
+            self.experiment.sequences = environments[f"map_{self.experiment.map_name}"]["sequences"]
+        else:
+            log.error(f"Could not find config for environment '{self.experiment.map_name}'. "
+                      f"Please specify a correct map name and try again.\n "
+                      f"The supported map names are: {environments.keys()}")
+
 
 class PlottingParametersBase(ParameterGroup):
     def __init__(self):
         self.fontsize = PlottingParameterGroups.Fontsize()
         self.padding = PlottingParameterGroups.Padding()
+        self.location = PlottingParameterGroups.Location()
 
         self.size: list = None
         self.dpi: int = None
@@ -159,8 +192,9 @@ class PlottingParametersBase(ParameterGroup):
 
 class PlottingParameters(Parameters):
     def __init__(self, network_type):
-        self.performance = PlottingParameterGroups.Performance()
-        self.events = PlottingParameterGroups.Events()
+        self.performance = PlottingParameterBases.Performance()
+        self.events = PlottingParameterBases.Events()
+        self.thresholds = PlottingParameterBases.Thresholds()
 
         super().__init__(network_type)
 
@@ -174,6 +208,7 @@ class NetworkParameterGroups:
             self.type: str = None
             self.id: str = None
             self.opt_id: str = None
+            self.map_name: str = None
             self.sequences: list = None
             self.seq_repetitions: int = None
             self.runtime: float = None
@@ -201,9 +236,11 @@ class NetworkParameterGroups:
 
     class Network(ParameterGroup):
         def __init__(self):
+            self.replay_mode: str = None
             self.num_symbols: int = None
             self.num_neurons: int = None
             self.pattern_size: int = None
+            self.ext_indiv: bool = None
 
     class Backend(ParameterGroup):
         def __init__(self):
@@ -216,11 +253,14 @@ class NetworkParameterGroups:
             self.dt_seq: float = None
             self.t_exc_start: float = None
             self.t_scaling_factor: float = None
+            self.encoding_type: str = None
             self.num_repetitions: int = None
+            self.probabilities: list = None
 
     class Plasticity(ParameterGroup):
         def __init__(self):
             self.type: str = None
+            self.enable_structured_stdp: bool = None
             self.execution_start: float = None
             self.execution_interval: float = None
             self.learning_factor: float = None
@@ -232,6 +272,7 @@ class NetworkParameterGroups:
             self.permanence_max: float = None
             self.permanence_threshold: float = None
             self.correlation_threshold: int = None
+            self.num_coactive_neurons: int = None
             self.w_mature: float = None
             self.y: float = None
             self.lambda_plus: float = None
@@ -244,14 +285,37 @@ class NetworkParameterGroups:
             self.delta_t_min: float = None
             self.delta_t_max: float = None
             self.dt: float = None
+        _to_evaluate: list = ["w_mature"]
+
+    class Replay(ParameterGroup):
+        def __init__(self):
+            self.v_thresh: float = None
+            self.theta_dAP: float = None
+            self.weight_factor_exc_inh: float = None
+            self.scaling_trace: float = None
+            self.scaling_target: float = None
+            self.max_scaling_loc: float = None
+            self.threshold_delta_t_up: int = None
 
     class Neurons(ParameterGroup):
         def __init__(self):
             self.inhibitory = NetworkParameterGroups.Inhibitory()
+            self.inhibitory_global = NetworkParameterGroups.InhibitoryGlobal()
             self.excitatory = NetworkParameterGroups.Excitatory()
             self.dendrite = NetworkParameterGroups.Dendrite()
 
     class Inhibitory(ParameterGroup):
+        def __init__(self):
+            self.c_m: float = None
+            self.v_rest: float = None
+            self.v_reset: float = None
+            self.v_thresh: float = None
+            self.tau_m: float = None
+            self.tau_syn_I: float = None
+            self.tau_syn_E: float = None
+            self.tau_refrac: float = None
+
+    class InhibitoryGlobal(ParameterGroup):
         def __init__(self):
             self.c_m: float = None
             self.v_rest: float = None
@@ -316,7 +380,7 @@ class NetworkParameterGroups:
 
 
 ### Plotting Parameters ###
-class PlottingParameterGroups:
+class PlottingParameterBases:
     class Performance(PlottingParametersBase):
         def __init__(self):
             super().__init__()
@@ -324,7 +388,15 @@ class PlottingParameterGroups:
     class Events(PlottingParametersBase):
         def __init__(self):
             super().__init__()
+            self.events = PlottingParameterGroups.Events()
 
+    class Thresholds(PlottingParametersBase):
+        def __init__(self):
+            super().__init__()
+            self.events = PlottingParameterGroups.Events()
+
+
+class PlottingParameterGroups:
     class Fontsize(ParameterGroup):
         def __init__(self):
             self.title: int = None
@@ -343,3 +415,24 @@ class PlottingParameterGroups:
             self.right: float = None
             self.top: float = None
             self.bottom: float = None
+            self.subplot_title: float = None
+            self.subplot_threshold: float = None
+            self.subfig_h_space: float = None
+            self.threshold_ratio: float = None
+
+
+    class Location(ParameterGroup):
+        def __init__(self):
+            self.legend_x: float = None
+            self.legend_y: float = None
+            self.title_x: float = None
+            self.title_y: float = None
+            self.label_xaxis_x: float = None
+            self.label_xaxis_y: float = None
+            self.label_yaxis_x: float = None
+            self.label_yaxis_y: float = None
+
+    class Events(ParameterGroup):
+        def __init__(self):
+            self.height: float = None
+            self.width: float = None

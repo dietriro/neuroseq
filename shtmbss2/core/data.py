@@ -12,8 +12,15 @@ from shtmbss2.common.config import *
 from shtmbss2.core.logging import log
 
 
-def load_yaml(path_yaml, file_name_yaml):
-    with open(join(path_yaml, file_name_yaml)) as file:
+COL_EXPERIMENT_ID = 0
+COL_EXPERIMENT_MAP = 1
+COL_EXPERIMENT_NUM = 2
+
+
+def load_yaml(path_yaml, file_name_yaml=None):
+    if file_name_yaml is not None:
+        path_yaml = join(path_yaml, file_name_yaml)
+    with open(path_yaml) as file:
         try:
             data = yaml.safe_load(file)
         except yaml.YAMLError as exc:
@@ -22,7 +29,8 @@ def load_yaml(path_yaml, file_name_yaml):
     return data
 
 
-def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config_type=ConfigType.NETWORK):
+def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config_type=ConfigType.NETWORK,
+                network_state=None, map_name=None):
     if not inspect.isclass(network_type):
         network_type = type(network_type)
 
@@ -34,14 +42,20 @@ def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config
         config_file_name = (f"{RuntimeConfig.config_prefix}_{experiment_type}_"
                             f"{RuntimeConfig.backend}_{network_type.__name__}{plasticity_location}.yaml")
     elif config_type == ConfigType.PLOTTING:
-        config_file_name = f"{RuntimeConfig.config_prefix}_{config_type}.yaml"
+        config_file_name = f"{RuntimeConfig.config_prefix}_{config_type}"
+        if network_state is not None and os.path.exists(f"{config_file_name}_{network_state.lower()}"):
+            config_file_name += f"_{network_state.lower()}"
+            if map_name is not None and os.path.exists(f"{config_file_name}_{map_name.split('_')[0].lower()}"):
+                    config_file_name += f"_{map_name.split('_')[0].lower()}"
+        config_file_name += f".yaml"
     else:
         log.error(f"Unknown config type '{config_type}'. Aborting.")
         return None
-    return load_yaml(PATH_CONFIG, config_file_name)
+
+    return load_yaml(CONFIG_FOLDERS[config_type], config_file_name)
 
 
-def get_last_experiment_num(net, experiment_id, experiment_type) -> int:
+def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None) -> int:
     file_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     if not exists(file_path):
@@ -52,14 +66,15 @@ def get_last_experiment_num(net, experiment_id, experiment_type) -> int:
         lines = list(csv_reader)
 
     for line in lines[::-1]:
-        if line[0] == experiment_id:
-            return int(line[1])
+        if line[COL_EXPERIMENT_ID] == experiment_id:
+            if experiment_map is None or (experiment_map is not None and line[COL_EXPERIMENT_MAP] == experiment_map):
+                return int(line[COL_EXPERIMENT_NUM])
 
     return 0
 
 
-def get_last_instance(net, experiment_type, experiment_id, experiment_num):
-    folder_path = get_experiment_folder(net, experiment_type, experiment_id, experiment_num)
+def get_last_instance(experiment_type, experiment_id, experiment_num, experiment_map=None):
+    folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num, experiment_map=experiment_map)
     last_instance_id = 0
     for item in os.listdir(folder_path):
         if os.path.isdir(join(folder_path, item)):
@@ -69,10 +84,12 @@ def get_last_instance(net, experiment_type, experiment_id, experiment_num):
     return last_instance_id + 1
 
 
-def get_experiment_folder(net, experiment_type, experiment_id, experiment_num, experiment_subnum=None, instance_id=None):
-    net_name = net.__name__ if inspect.isclass(net) else str(net)
-
-    folder_name = f"{net_name}_{experiment_id}_{experiment_num:02d}"
+def get_experiment_folder(experiment_type, experiment_id, experiment_num, experiment_map=None,
+                          experiment_subnum=None, instance_id=None):
+    if experiment_map is None:
+        folder_name = f"SHTMTotal_{experiment_id}_{experiment_num:02d}"
+    else:
+        folder_name = f"{experiment_id}_{experiment_map}_{experiment_num:02d}"
     folder_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend],
                        str(EXPERIMENT_SUBFOLDERS[experiment_type]),
                        folder_name)
@@ -96,7 +113,6 @@ def get_experiment_folder(net, experiment_type, experiment_id, experiment_num, e
 
 def save_setup(data, experiment_num, create_eval_file, do_update, file_path, save_categories=False, max_decimals=5,
                **kwargs):
-
     # ToDo: Implement this feature, check if metrics can be added
     # add all static parameters defined above for this specific experiment
     # for param_name in sorted(kwargs):
@@ -139,7 +155,6 @@ def save_setup(data, experiment_num, create_eval_file, do_update, file_path, sav
                     data.pop(header)
                 else:
                     values.append('None')
-
 
         if len(data.keys()) > 0:
             do_update_headers = True
@@ -198,18 +213,20 @@ def save_setup(data, experiment_num, create_eval_file, do_update, file_path, sav
     return experiment_num
 
 
-def save_instance_setup(net, parameters, performance, experiment_num=None, experiment_subnum=None, instance_id=None,
+def save_instance_setup(parameters, performance, experiment_num=None, experiment_subnum=None, instance_id=None,
                         optimized_parameters=None, **kwargs):
     params = flatten_dict(parameters.dict(exclude_none=True))
     experiment_type = parameters.experiment.type
     experiment_id = parameters.experiment.id
 
-    folder_path_instance = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
+    folder_path_instance = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                                 experiment_map=parameters.experiment.map_name,
                                                  experiment_subnum=experiment_subnum, instance_id=instance_id)
     if not os.path.exists(folder_path_instance):
         os.makedirs(folder_path_instance)
 
-    folder_path_experiment = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
+    folder_path_experiment = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                                   experiment_map=parameters.experiment.map_name,
                                                    experiment_subnum=None if instance_id is None else experiment_subnum,
                                                    instance_id=None)
     file_path = join(folder_path_experiment, EXPERIMENT_SETUP_FILE_NAME[ExperimentType.INSTANCE])
@@ -231,7 +248,7 @@ def save_instance_setup(net, parameters, performance, experiment_num=None, exper
 
 
 def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, instance_id=None,
-                            optimized_parameter_ranges=None, **kwargs):
+                            optimized_parameter_ranges=None, experiment_map=None, **kwargs):
     params = flatten_dict(net.p.dict(exclude_none=True))
     params.pop("config_type")
     experiment_type = net.p.experiment.type
@@ -241,7 +258,7 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
 
     # add the experiment id and network type
     create_eval_file = not exists(file_path)
-    last_experiment_num = get_last_experiment_num(net, experiment_id, experiment_type)
+    last_experiment_num = get_last_experiment_num(experiment_id, experiment_type, experiment_map)
     do_update = False
     if experiment_num is None:
         experiment_num = last_experiment_num + 1
@@ -253,17 +270,17 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
         return None
 
     # create folder if it doesn't exist
-    folder_path = get_experiment_folder(net, experiment_type, experiment_id, experiment_num,
-                                        experiment_subnum=experiment_subnum, instance_id=None)
+    folder_path = get_experiment_folder(experiment_type, experiment_id, experiment_num,
+                                        experiment_map=experiment_map, experiment_subnum=experiment_subnum,
+                                        instance_id=None)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
     # prepare data for saving
     if optimized_parameter_ranges is None:
         optimized_parameter_ranges = dict()
-    data = {'experiment_id': experiment_id, 'experiment_num': f'{experiment_num:02d}',
+    data = {'experiment_id': experiment_id, 'experiment_map': experiment_map, 'experiment_num': f'{experiment_num:02d}',
             'network_type': str(net), 'time_finished': datetime.datetime.now().strftime('%d.%m.%y - %H:%M')}
-
 
     data = {**data, **optimized_parameter_ranges, **params}
 
@@ -346,3 +363,10 @@ def sparsen_list(list_full):
         prev_item = copy(item)
 
     return list_sparse
+
+
+def gen_map_name(map_name):
+    if map_name is None:
+        map_name = ""
+        log.warning("Map name is None. Setting it to an empty string now.")
+    return f"map_{map_name}"

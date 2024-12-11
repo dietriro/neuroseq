@@ -20,7 +20,7 @@ warnings.filterwarnings(action='ignore', category=UserWarning)
 class GridSearch:
     supported_experiment_types = [ExperimentType.OPT_GRID, ExperimentType.OPT_GRID_MULTI]
 
-    def __init__(self, experiment_type, model_type, experiment_id, experiment_num=None):
+    def __init__(self, experiment_type, model_type, experiment_id, experiment_map=None, experiment_num=None):
         if experiment_type not in self.supported_experiment_types:
             log.error(f"Unsupported experiment-type selected: {experiment_type}.\n"
                       f"Please choose one of: {self.supported_experiment_types}")
@@ -31,6 +31,7 @@ class GridSearch:
         self.experiment_id = experiment_id
         self.experiment_num = experiment_num
         self.experiment_type = experiment_type
+        self.experiment_map = experiment_map
 
         self.continuation_id = None
 
@@ -49,21 +50,21 @@ class GridSearch:
 
     def init_experiment_num(self):
         # retrieve experiment num for new experiment
-        last_experiment_num = get_last_experiment_num(self.model_type, self.experiment_id, self.experiment_type)
+        last_experiment_num = get_last_experiment_num(self.experiment_id, self.experiment_type, self.experiment_map)
         if self.experiment_num is None:
             self.experiment_num = last_experiment_num + 1
 
         if self.experiment_num <= last_experiment_num:
-            self.continuation_id = get_last_instance(self.model_type, self.experiment_type, self.experiment_id,
-                                                     self.experiment_num)
+            self.continuation_id = get_last_instance(self.experiment_type, self.experiment_id, self.experiment_num,
+                                                     experiment_map=self.experiment_map)
             if self.continuation_id > 1:
                 self.continuation_id -= 1
 
     def load_config(self):
         if self.continuation_id is not None:
             # load config from existing experiment
-            config_path = get_experiment_folder(self.model_type, self.experiment_type, self.experiment_id,
-                                                self.experiment_num)
+            config_path = get_experiment_folder(self.experiment_type, self.experiment_id, self.experiment_num,
+                                                experiment_map=self.experiment_map)
             config_name = f"config_{self.experiment_type}.yaml"
             self.config = load_yaml(config_path, config_name)
         else:
@@ -77,8 +78,8 @@ class GridSearch:
         self.plot_perf_dd = self.config["experiment"].get("plot_perf_dd", True)
 
     def save_config(self):
-        folder_path_experiment = get_experiment_folder(self.model_type, self.experiment_type, self.experiment_id,
-                                                       self.experiment_num, instance_id=None)
+        folder_path_experiment = get_experiment_folder(self.experiment_type, self.experiment_id, self.experiment_num,
+                                                       experiment_map=self.experiment_map, instance_id=None)
         config_file_name = f"config_{self.experiment_type}.yaml"
         file_path = join(folder_path_experiment, config_file_name)
         with open(file_path, 'w') as file:
@@ -122,8 +123,9 @@ class GridSearch:
         if fig_save:
             fig, _ = model.performance.plot(p_plot, statistic=StatisticalMetrics.MEDIAN, fig_show=False,
                                             plot_dd=plot_perf_dd)
-            figure_path = join(get_experiment_folder(self.model_type, self.experiment_type, self.experiment_id,
-                                                     experiment_num, instance_id=instance_id), "performance")
+            figure_path = join(get_experiment_folder(self.experiment_type, self.experiment_id,
+                                                     experiment_num, experiment_map=self.experiment_map,
+                                                     instance_id=instance_id), "performance")
             fig.savefig(figure_path, dpi=p_plot.performance.dpi)
             plt.close(fig)
 
@@ -135,9 +137,9 @@ class GridSearch:
 
         # run experiments using parallel-executor
         pe = ParallelExecutor(num_instances=self.num_instances, experiment_id=experiment_id,
-                              experiment_type=self.experiment_type, experiment_num=experiment_num,
-                              experiment_subnum=experiment_subnum, parameter_ranges=optimized_parameter_ranges,
-                              fig_save=False)
+                              experiment_type=self.experiment_type, experiment_map=self.experiment_map,
+                              experiment_num=experiment_num, experiment_subnum=experiment_subnum,
+                              parameter_ranges=optimized_parameter_ranges, fig_save=False)
         experiment_num = pe.run(steps=steps, additional_parameters=optimized_parameters, seed_offset=seed_offset,
                                 plot_perf_dd=plot_perf_dd)
 
@@ -153,13 +155,15 @@ class GridSearch:
         # retrieve performance data for entire set of instances for subnum
         pf = PerformanceMulti(p, self.num_instances)
         pf.load_data(self.model_type, experiment_type=ExperimentType.OPT_GRID_MULTI, experiment_id=self.experiment_id,
-                     experiment_num=experiment_num, experiment_subnum=experiment_subnum)
+                     experiment_map=self.experiment_map, experiment_num=experiment_num,
+                     experiment_subnum=experiment_subnum)
 
         # save figure of performance
         if fig_save:
             fig, _ = pf.plot(p_plot, statistic=StatisticalMetrics.MEDIAN, fig_show=False)
-            figure_path = join(get_experiment_folder(self.model_type, self.experiment_type, self.experiment_id,
-                                                     experiment_num, experiment_subnum=experiment_subnum),
+            figure_path = join(get_experiment_folder(self.experiment_type, self.experiment_id, experiment_num,
+                                                     experiment_map=self.experiment_map,
+                                                     experiment_subnum=experiment_subnum),
                                "performance")
             fig.savefig(figure_path, dpi=p_plot.performance.dpi)
             plt.close(fig)

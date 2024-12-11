@@ -1,9 +1,9 @@
 import os
-import numpy as np
+
+from shtmbss2.nest.learning import Plasticity
 
 os.environ["PYNEST_QUIET"] = "1"
 
-from abc import ABC
 from quantities import ms
 from neo.core.spiketrainlist import SpikeTrain, SpikeTrainList
 
@@ -21,7 +21,8 @@ pynn.setup(timestep=0.1, t_flush=500, spike_precision="on_grid")
 RECORDING_VALUES = {
     NeuronType.Soma: {RecTypes.SPIKES: "spikes", RecTypes.V: "V_m"},
     NeuronType.Dendrite: {RecTypes.SPIKES: "dAP", RecTypes.V: "I_dend"},
-    NeuronType.Inhibitory: {RecTypes.SPIKES: "spikes", RecTypes.V: "v"}
+    NeuronType.Inhibitory: {RecTypes.SPIKES: "spikes", RecTypes.V: "v"},
+    NeuronType.InhibitoryGlobal: {RecTypes.SPIKES: "spikes", RecTypes.V: "v"}
 }
 MCNeuron = pynn.NativeCellType
 
@@ -88,9 +89,12 @@ class SHTMBase(network.SHTMBase, ABC):
 
         return all_neurons
 
-    def init_neurons_inh(self, num_neurons=None):
+    def init_neurons_inh(self, num_neurons=None, tau_refrac=None):
         if num_neurons is None:
             num_neurons = self.p.network.num_symbols
+
+        if tau_refrac is None:
+            tau_refrac = self.p.neurons.inhibitory.tau_refrac
 
         # cm, i_offset, tau_m, tau_refrac, tau_syn_E, tau_syn_I, v_reset, v_rest, v_thresh
 
@@ -103,7 +107,7 @@ class SHTMBase(network.SHTMBase, ABC):
             tau_m=self.p.neurons.inhibitory.tau_m,
             tau_syn_I=self.p.neurons.inhibitory.tau_syn_I,
             tau_syn_E=self.p.neurons.inhibitory.tau_syn_E,
-            tau_refrac=self.p.neurons.inhibitory.tau_refrac * ms,
+            tau_refrac=tau_refrac * ms,
         ), initial_values={
             "v": self.p.neurons.inhibitory.v_rest
         })
@@ -119,6 +123,7 @@ class SHTMBase(network.SHTMBase, ABC):
         if init_recorder:
             self.neurons_ext.record(["spikes"])
 
+
     def reset(self, store_to_cache=False):
         # ToDo: Have a look if we can keep pynn from running 'store_to_cache' - this takes about a second for 5 epochs
         pynn.reset(store_to_cache=store_to_cache)
@@ -131,21 +136,24 @@ class SHTMBase(network.SHTMBase, ABC):
         neurons = None
         if neuron_type == NeuronType.Inhibitory:
             neurons = self.neurons_inh
+        elif neuron_type == NeuronType.InhibitoryGlobal:
+            neurons = self.neurons_inh_global
         elif neuron_type in [NeuronType.Dendrite, NeuronType.Soma]:
             neurons = self.neurons_exc
 
         if symbol_id is None:
             return neurons
         else:
-            if neuron_type == NeuronType.Inhibitory:
-                return pynn.PopulationView(self.neurons_inh, [symbol_id])
+            if neuron_type == NeuronType.Inhibitory or neuron_type == NeuronType.InhibitoryGlobal:
+                return pynn.PopulationView(neurons, [symbol_id])
             else:
                 return neurons[symbol_id]
 
     def get_neuron_data(self, neuron_type, neurons=None, value_type="spikes", symbol_id=None, neuron_id=None,
                         runtime=None, dtype=None):
         if neurons is None:
-            neurons = self.get_neurons(neuron_type, symbol_id=symbol_id)
+            neurons = self.get_neurons(neuron_type,
+                                       symbol_id=symbol_id if neuron_type is not NeuronType.InhibitoryGlobal else None)
 
         if value_type == RecTypes.SPIKES:
             if neuron_type == NeuronType.Dendrite:
@@ -371,17 +379,3 @@ class SHTMTotal(SHTMBase, network.SHTMTotal):
         super().__init__(experiment_type=experiment_type, experiment_id=experiment_id, experiment_num=experiment_num,
                          experiment_subnum=experiment_subnum, plasticity_cls=Plasticity, instance_id=instance_id,
                          seed_offset=seed_offset, p=p, **kwargs)
-
-
-class Plasticity(network.Plasticity):
-    def __init__(self, projection: pynn.Projection, post_somas, shtm, index, **kwargs):
-        super().__init__(projection, post_somas, shtm, index, **kwargs)
-
-    def get_connection_id_pre(self, connection):
-        return self.projection.pre.id_to_index(connection.source)
-
-    def get_connection_id_post(self, connection):
-        return self.projection.post.id_to_index(connection.target)
-
-    def get_connections(self):
-        return self.projection.nest_connections

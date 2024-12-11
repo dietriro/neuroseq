@@ -1,0 +1,28 @@
+map_ambiguous_01:
+  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E]]
+map_ambiguous_01a:
+  sequences: [[A, B, C, D, E, F], [A, B, C, D, E, G], [A, B, C, D, H, I]]
+map_ambiguous_02:
+  sequences: [[A, B, C, D], [A, B, C, D], [A, B, F], [A, B, C, E]]
+map_ambiguous_02b:
+  sequences: [[A, B, C, D, E], [A, B, C, D, E], [A, B, C, D, F], [A, B, C, D, E], [A, B, G, H]]
+map_ambiguous_03:
+#  sequences: [[A, B, C, D], [A, B, C, D], [A, B, C, E], [A, B, C], [A, B, F], [A, B, F]]
+  sequences: [[A, B, C, D], [A, B, C], [A, B, C, D], [A, B, F], [A, B, C, E], [A, B, F]]
+#  sequences: [[A, B, C, D], [A, B, F], [A, B, C, D], [A, B, C, E], [A, B, F], [A, B, C, D]]
+map_ambiguous_04:
+  sequences: [
+  ['A', 'B', 'C'],
+  ['A', 'B', 'C'],
+  ['A', 'B', 'C'],
+  ['A', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
+  ['A', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
+  ['A', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
+  ['A', 'D', 'E', 'F', 'G', 'H', 'N', 'O', 'P', 'Q'],
+  ['A', 'D', 'E', 'F', 'G', 'H', 'N', 'O', 'R']
+  ]
+map_path-planning_01:
+  sequences: [[A, B, C, D, E, G, I], [A, B, C, F, H]]
+map_path-planning_02:
+  sequences: [[A, B, C, D, E, G, I, J], [A, B, C, F, H, J]]
+#  sequences: [[A, B, C, D, E, G, I, J, H, F, C], [A, B, C, F, H, J, I, G, E]]

@@ -1,4 +1,5 @@
 from inspect import isclass
+from abc import ABC
 
 import shtmbss2
 import logging
@@ -15,18 +16,41 @@ os.environ["HWLOC_COMPONENTS"] = "-gl"
 PY_PKG_PATH = split(dirname(shtmbss2.__file__))[0]
 
 
+class NeuronTypeABC(ABC):
+    ID: int = None
+    NAME: str = None
+    NAME_PRINT: str = None
+    COLOR_ID: int = None
+
+    @classmethod
+    def get_name_print(cls):
+        return cls.NAME.replace("_", " ").title()
+
+
 class NeuronType:
-    class Dendrite:
+    class Dendrite(NeuronTypeABC):
         ID = 0
         NAME = "dendrite"
+        NAME_PRINT = "Dendrite"
+        COLOR_ID = 0
 
-    class Soma:
+    class Soma(NeuronTypeABC):
         ID = 1
         NAME = "soma"
+        NAME_PRINT = "Soma"
+        COLOR_ID = 1
 
-    class Inhibitory:
+    class Inhibitory(NeuronTypeABC):
         ID = 2
         NAME = "inhibitory"
+        NAME_PRINT = "Local Inh."
+        COLOR_ID = 2
+
+    class InhibitoryGlobal(NeuronTypeABC):
+        ID = 3
+        NAME = "inhibitory_global"
+        NAME_PRINT = "Global Inh."
+        COLOR_ID = 3
 
     @staticmethod
     def get_all_types():
@@ -56,6 +80,44 @@ class Backends(NamedStorage):
 class RunType(NamedStorage):
     MULTI = "multi"
     SINGLE = "single"
+
+
+class NetworkState(NamedStorage):
+    PREDICTIVE = "predictive"
+    REPLAY = "replay"
+
+
+class EncodingType(NamedStorage):
+    DEFAULT = "default"
+    PROBABILISTIC = "probabilistic"
+
+
+class ReplayMode(NamedStorage):
+    PARALLEL = "parallel"
+    CONSECUTIVE = "consecutive"
+
+
+class DendriteState(NamedStorage):
+    INACTIVE = "inactive"
+    WEAK = "weak"
+    PREDICTIVE = "predictive"
+    DUPLICATE = "duplicate"
+
+
+class SomaState(NamedStorage):
+    INACTIVE = "inactive"
+    ACTIVE = "active"
+
+
+class Colors(NamedStorage):
+    BLACK = "black"
+    GREY = "grey"
+    BLUE = "blue"
+    LIGHT_BLUE = "lightblue"
+    DARK_BLUE = "darkblue"
+    PURPLE = "purple"
+    RED = "red"
+    GREEN = "green"
 
 
 class FileType(NamedStorage):
@@ -149,6 +211,12 @@ class Log(NamedStorage):
 
 PATH_CONFIG = join(PY_PKG_PATH, 'config')
 PATH_MODELS = join(PY_PKG_PATH, 'models')
+PATH_MAPS = join(PY_PKG_PATH, 'data', 'maps')
+
+CONFIG_FOLDERS = {
+    ConfigType.NETWORK: PATH_CONFIG,
+    ConfigType.PLOTTING: join(PATH_CONFIG, ConfigType.PLOTTING)
+}
 
 EXPERIMENT_FOLDERS = {
     Backends.NEST: join(PY_PKG_PATH, 'data/evaluation/nest'),

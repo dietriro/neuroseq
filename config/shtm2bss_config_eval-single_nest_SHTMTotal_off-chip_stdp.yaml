@@ -1,10 +1,13 @@
 experiment:
-  id: 'eval'
+  id: 'org_s2'
   opt_id: ''
-  map_name: 'ambiguous_03'
-#  map_name: 'path-planning_02'
 #  sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
-#  sequences: [[A, B, C], [D, C, B], [E, B, C]]
+  sequences: [[A, F, C, E], [A, F, B, D]]
+#  sequences: [['A', 'B', 'C', 'F'], ['D', 'B', 'C', 'E', 'F']]
+#  sequences: [[A, B, C, G, I, H, F],
+#              [D, B, C, E, J, F]]
+#  sequences: [A, C, D]
+#  sequences: [['A', 'F', 'C', 'E'], ['A', 'F', 'B', 'D', 'F']]
 #  sequences: [[A, D, B, E], [F, D, B, C]]
 #  sequences: [['E', 'N', 'D', 'I', 'J'], ['L', 'N', 'D', 'I', 'K'], ['G', 'J', 'M', 'C', 'N'], ['F', 'J', 'M', 'C', 'I'], ['B', 'C', 'K', 'H', 'I'], ['A', 'C', 'K', 'H', 'F']]
 #  sequences: [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']]
@@ -15,7 +18,7 @@ experiment:
   save_auto: False
   save_auto_epoches: 5
   generate_rand_seed_offset: False
-  seed_offset: 5
+  seed_offset: null
   log_weights: True
   log_permanence: True
 plotting:
@@ -27,11 +30,10 @@ performance:
   method: "all_symbols"
   running_avgs: [ 0.25, 0.5, 0.75, 1.0 ]
 network:
-  num_symbols: null  # 18
-  replay_mode: "parallel"
-  num_neurons: 21
+  replay_mode: "consecutive"
+  num_symbols: 6
+  num_neurons: 15
   pattern_size: 3
-  ext_indiv: True
 backend:
   module_name: "nestml_mc01_module"
   neuron_name: "iaf_psc_exp_nonlineardendritemc01_nestml"
@@ -40,47 +42,35 @@ encoding:
   dt_seq: 100
   t_exc_start: 10
   t_scaling_factor: 1.
+  encoding_type: "probabilistic"
   num_repetitions: 1
+  probabilities: [0.15, 0.85]
 plasticity:
   type: 'original'
 #  type: 'bss2'
 #  type: 'bss2_int'
-  enable_structured_stdp: True
+  enable_structured_stdp: False
   learning_factor: 1    # 2 for int
   learning_rate_decay: null
   weight_learning: False
   weight_learning_scale: 0.0026
-  permanence_init_min: 0
-  permanence_init_max: 8
-  permanence_max: 20.
+  permanence_init_min: 0.
+  permanence_init_max: 1.
+  permanence_max: 35.
   permanence_threshold: 10.
   correlation_threshold: 0.0005 # 0.06 for tau_+ = 20
-  num_coactive_neurons: 1
-  w_mature: 1.1 * parameters.neurons.dendrite.theta_dAP * 0.001 / parameters.plasticity.num_coactive_neurons
+  w_mature: 0.1298 # 0.1298
   y: 1
-  lambda_plus: 0.08   # bss=0.15 / bss-int=0.25 for int
-  lambda_minus: 0.0015    # bss=0.0045 / bss-int=0.0007 for int
-  lambda_h: 0.014        # bss=0.03 / bss-int=0.03 for int
+  lambda_plus: 0.0009   # bss=0.15 / bss-int=0.25 for int
+  lambda_minus: 0.000014    # bss=0.0045 / bss-int=0.0007 for int
+  lambda_h: 0.0008        # bss=0.03 / bss-int=0.03 for int
   homeostasis_depression_rate: 1.0
-  target_rate_h: 1.0   # bss=0.16 / bss-int=0.14
+  target_rate_h: 10.35   # bss=0.16 / bss-int=0.14
   tau_plus: 20      # bss=18 / bss-int=20
-  tau_h: null       # computed during runtime based on sequence length
+  tau_h: 2200       # computed during runtime based on sequence length
   delta_t_min: 4
-  delta_t_max: 75
+  delta_t_max: 50
   dt: 0.1
-replay:
-  # probabilistic
-  v_thresh: 6.5
-  theta_dAP: 59       # 59 should work better
-  weight_factor_exc_inh: 1
-  # original
-#  v_thresh: 5
-#  theta_dAP: 41.3
-#  weight_factor_exc_inh: 1
-  scaling_trace: 0.9
-  scaling_target: 0.8
-  max_scaling_loc: 0.2
-  threshold_delta_t_up: 55    # 55 for ambig, 58 for path
 neurons:
   inhibitory:
     c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000
@@ -91,8 +81,6 @@ neurons:
     tau_syn_I: 1.0
     tau_syn_E: 0.5
     tau_refrac: 2
-  inhibitory_global:
-    tau_refrac: 8
   excitatory:
     c_m: 250
     v_rest: 0
