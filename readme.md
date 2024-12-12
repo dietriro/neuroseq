@@ -1,15 +1,27 @@
-# Spiking HTM on BrainScaleS-2
+# Neuromorphic Sequential Learning with Spiking Neural Networks
 
-## Branches
+This repository contains code for training a spiking neural network (SNN) on sequential data as well as replaying already learned sequences for e.g. planning purposes.
 
-- main - Contains all code and the most relevant data
-- data - Contains all code and all data (from grid searches)
 
-## Installation (NEST Simulation)
+## 1 Installation
+
+### 1.1 Installation (NEST Simulation)
 
 Please make sure that the 'make' package is installed in your system.
 
-1. Install conda
+1. Download and prepare repository
+
+```bash
+# Clone repository into new folder
+git clone 
+# Make script executable
+chmod +x conda.sh
+# Install anaconda (optionally providing a custom prefix '-p /opt/conda')
+./conda.sh -b -p /opt/conda
+```
+
+
+2. Install conda
 
 ```bash
 # Download latest anaconda version
@@ -21,7 +33,7 @@ chmod +x conda.sh
 ```
 
 
-2. Setup conda environment
+3. Setup conda environment
 
 ```bash
 # Create a conda environment (with boost-cpp and gxx being optional, only necessary for e.g. a bare ubuntu docker)
@@ -35,7 +47,7 @@ cd /path/to/repository
 pip install .
 ```
 
-3. Install custom neuron
+4. Install custom neuron
 
 ```bash
 # Make sure to source conda environment
@@ -46,7 +58,7 @@ export PYTHONPATH=/path/to/repository:$PYTHONPATH
 python test/install_mc_neuron.py
 ```
 
-4. (Optional) Install custom PyNN-Nest version to remove "initial values" messages.
+5. (Optional) Install custom PyNN-Nest version to remove "initial values" messages.
 
 ```bash
 # Make sure to source conda environment
