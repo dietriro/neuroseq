@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import nest
 from pynestml.codegeneration.nest_code_generator_utils import NESTCodeGeneratorUtils
 
-from shtmbss2.core.logging import log
-from shtmbss2.nest.config import DEFAULT_MC_MODEL_FILE
+from neuroseq.core.logging import log
+from neuroseq.nest.config import DEFAULT_MC_MODEL_FILE
 
 
 def install_mc_neuron(version, nestml_file=DEFAULT_MC_MODEL_FILE):

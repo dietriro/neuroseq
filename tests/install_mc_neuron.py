@@ -1,4 +1,4 @@
-from shtmbss2.nest.utilities import install_mc_neuron
+from neuroseq.nest.utilities import install_mc_neuron
 
 version = "01"
 

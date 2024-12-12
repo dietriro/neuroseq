@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-from shtmbss2.common.config import *
-from shtmbss2.core.data import get_last_experiment_num, get_experiment_folder
-from shtmbss2.core.logging import log
+from neuroseq.common.config import *
+from neuroseq.core.data import get_last_experiment_num, get_experiment_folder
+from neuroseq.core.logging import log
 
 
 class LabelTypes(NamedStorage):

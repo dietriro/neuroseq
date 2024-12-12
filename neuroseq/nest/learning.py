@@ -1,9 +1,9 @@
 from pyNN import nest as pynn
 
-import shtmbss2.common.learning
+import neuroseq.common.learning
 
 
-class Plasticity(shtmbss2.common.learning.Plasticity):
+class Plasticity(neuroseq.common.learning.Plasticity):
     def __init__(self, projection: pynn.Projection, post_somas, shtm, index, **kwargs):
         super().__init__(projection, post_somas, shtm, index, **kwargs)
 

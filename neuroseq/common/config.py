@@ -1,7 +1,7 @@
 from inspect import isclass
 from abc import ABC
 
-import shtmbss2
+import neuroseq
 import logging
 import os
 import string
@@ -13,7 +13,7 @@ from os.path import join, dirname, split
 os.environ["HWLOC_COMPONENTS"] = "-gl"
 
 
-PY_PKG_PATH = split(dirname(shtmbss2.__file__))[0]
+PY_PKG_PATH = split(dirname(neuroseq.__file__))[0]
 
 
 class NeuronTypeABC(ABC):

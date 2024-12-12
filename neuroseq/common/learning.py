@@ -3,10 +3,10 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from shtmbss2.common.config import SYMBOLS, NeuronType, RuntimeConfig, Backends
-from shtmbss2.common import network
-from shtmbss2.core.helpers import symbol_from_label, calculate_trace
-from shtmbss2.core.logging import log
+from neuroseq.common.config import SYMBOLS, NeuronType, RuntimeConfig, Backends
+from neuroseq.common import network
+from neuroseq.core.helpers import symbol_from_label, calculate_trace
+from neuroseq.core.logging import log
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
     from pynn_brainscales.brainscales2 import Projection

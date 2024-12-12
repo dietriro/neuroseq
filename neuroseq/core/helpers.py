@@ -2,7 +2,7 @@ import multiprocessing as mp
 import traceback
 import numpy as np
 
-from shtmbss2.common.config import SYMBOLS
+from neuroseq.common.config import SYMBOLS
 
 
 class Process(mp.Process):

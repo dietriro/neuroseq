@@ -3,14 +3,14 @@ from abc import ABC
 
 import numpy as np
 
-import shtmbss2.common.learning
+import neuroseq.common.learning
 from pynn_brainscales import brainscales2 as pynn
 from pynn_brainscales.brainscales2 import Projection
-from shtmbss2.brainscales2.network import SHTMTotal
-from shtmbss2.core.logging import log
+from neuroseq.brainscales2.network import SHTMTotal
+from neuroseq.core.logging import log
 
 
-class Plasticity(shtmbss2.common.learning.Plasticity):
+class Plasticity(neuroseq.common.learning.Plasticity):
     def __init__(self, projection: pynn.Projection, post_somas, shtm, index, **kwargs):
         super().__init__(projection, post_somas, shtm, index, **kwargs)
 

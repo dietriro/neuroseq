@@ -4,17 +4,17 @@ import numpy as np
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 
-from shtmbss2.core.helpers import Process
-from shtmbss2.common.config import *
-from shtmbss2.core.logging import log
-from shtmbss2.core.data import get_last_experiment_num, get_experiment_folder
-from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
-from shtmbss2.core.performance import PerformanceMulti
+from neuroseq.core.helpers import Process
+from neuroseq.common.config import *
+from neuroseq.core.logging import log
+from neuroseq.core.data import get_last_experiment_num, get_experiment_folder
+from neuroseq.core.parameters import NetworkParameters, PlottingParameters
+from neuroseq.core.performance import PerformanceMulti
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
-    from shtmbss2.brainscales2.network import SHTMTotal
+    from neuroseq.brainscales2.network import SHTMTotal
 elif RuntimeConfig.backend == Backends.NEST:
-    from shtmbss2.nest.network import SHTMTotal
+    from neuroseq.nest.network import SHTMTotal
 else:
     raise Exception(f"Backend {RuntimeConfig.backend} not implemented yet. "
                     f"Please choose among [{Backends.BRAIN_SCALES_2}, {Backends.NEST}]")

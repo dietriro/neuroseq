@@ -4,13 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from abc import ABC, abstractmethod
 
-from shtmbss2.common.config import *
-from shtmbss2.core.logging import log
-from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
-from shtmbss2.core.helpers import moving_average, id_to_symbol
-from shtmbss2.common.config import NeuronType
-from shtmbss2.core.data import get_experiment_folder
-from shtmbss2.common.plot import plot_panel_label
+from neuroseq.common.config import *
+from neuroseq.core.logging import log
+from neuroseq.core.parameters import NetworkParameters, PlottingParameters
+from neuroseq.core.helpers import moving_average, id_to_symbol
+from neuroseq.common.config import NeuronType
+from neuroseq.core.data import get_experiment_folder
+from neuroseq.common.plot import plot_panel_label
 
 
 class Performance(ABC):

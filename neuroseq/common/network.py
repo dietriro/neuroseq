@@ -6,6 +6,8 @@ import sys
 import multiprocessing as mp
 import itertools as it
 import glob
+import sys
+
 
 from types import ModuleType, FunctionType
 from gc import get_referents
@@ -16,16 +18,16 @@ from tabulate import tabulate
 from abc import abstractmethod
 from copy import deepcopy
 
-from shtmbss2.common.config import *
-from shtmbss2.common import learning
-from shtmbss2.core.logging import log
-from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
-from shtmbss2.core.performance import PerformanceSingle
-from shtmbss2.core.helpers import (Process, id_to_symbol, calculate_trace,
+from neuroseq.common.config import *
+from neuroseq.common import learning
+from neuroseq.core.logging import log
+from neuroseq.core.parameters import NetworkParameters, PlottingParameters
+from neuroseq.core.performance import PerformanceSingle
+from neuroseq.core.helpers import (Process, id_to_symbol, calculate_trace,
                                    psp_max_2_psc_max)
-from shtmbss2.common.plot import plot_dendritic_events
-from shtmbss2.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
-from shtmbss2.core.map import Map, LabelTypes
+from neuroseq.common.plot import plot_dendritic_events
+from neuroseq.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
+from neuroseq.core.map import Map, LabelTypes
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
     import pynn_brainscales.brainscales2 as pynn
@@ -1592,6 +1594,8 @@ class SHTMTotal(SHTMBase, ABC):
 
     def load_network_data(self, experiment_type, experiment_num, experiment_map=None, experiment_subnum=None,
                           instance_id=None):
+        sys.modules['shtmbss2'] = neuroseq
+
         # ToDo: Check if this works with bss2
         folder_path = get_experiment_folder(experiment_type, self.p.experiment.id, experiment_num,
                                             experiment_map=experiment_map, experiment_subnum=experiment_subnum,

@@ -1,6 +1,6 @@
-from shtmbss2.common.config import *
-from shtmbss2.core.parameters import NetworkParameters
-from shtmbss2.core.performance import PerformanceSingle
+from neuroseq.common.config import *
+from neuroseq.core.parameters import NetworkParameters
+from neuroseq.core.performance import PerformanceSingle
 
 
 def get_stds_for_opt(network_type, experiment_id, experiment_num, metric, num_samples,

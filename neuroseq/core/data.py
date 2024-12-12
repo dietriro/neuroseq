@@ -8,8 +8,8 @@ import datetime
 from copy import copy
 from os.path import exists
 
-from shtmbss2.common.config import *
-from shtmbss2.core.logging import log
+from neuroseq.common.config import *
+from neuroseq.core.logging import log
 
 
 COL_EXPERIMENT_ID = 0

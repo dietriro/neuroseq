@@ -9,9 +9,9 @@ sys.path.append(pkg_path)
 np.set_printoptions(threshold=np.inf, suppress=True, linewidth=np.inf)
 warnings.filterwarnings(action='ignore', category=UserWarning)
 
-import shtmbss2.addsrc
-from shtmbss2.common.config import *
-from shtmbss2.core.logging import log
+import neuroseq.addsrc
+from neuroseq.common.config import *
+from neuroseq.core.logging import log
 
 np.set_printoptions(threshold=np.inf, suppress=True, linewidth=np.inf)
 warnings.filterwarnings(action='ignore', category=UserWarning)
@@ -27,9 +27,9 @@ RuntimeConfig.backend = Backends.BRAIN_SCALES_2
 
 shtm = None
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
-    import shtmbss2.brainscales2.patches
-    from shtmbss2.brainscales2.hardware import hardware_initialization
-    from shtmbss2.brainscales2.network import SHTMTotal
+    import neuroseq.brainscales2.patches
+    from neuroseq.brainscales2.hardware import hardware_initialization
+    from neuroseq.brainscales2.network import SHTMTotal
     # TODO: remove once grenade supports dense inter-population-view projections
     neuronPermutation = []
     shtm = SHTMTotal(use_on_chip_plasticity=True)
@@ -48,9 +48,9 @@ if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
 
     hardware_initialization(neuron_permutation=neuronPermutation)
 elif RuntimeConfig.backend == Backends.NEST:
-    from shtmbss2.nest.network import SHTMTotal
+    from neuroseq.nest.network import SHTMTotal
     
-from shtmbss2.common.network import NeuronType, RecTypes
+from neuroseq.common.network import NeuronType, RecTypes
 
 
 # ## Configuration
@@ -241,7 +241,7 @@ shtm.plot_permanence_history(plot_con_ids=[0, 1])
 # In[ ]:
 
 
-from shtmbss2.common.network import NeuronType, RecTypes
+from neuroseq.common.network import NeuronType, RecTypes
 
 shtm.plot_v_exc(alphabet_range=[2], neuron_range="all", neuron_type=NeuronType.Soma)
 

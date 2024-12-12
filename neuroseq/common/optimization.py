@@ -4,14 +4,14 @@ import itertools
 import yaml
 import matplotlib.pyplot as plt
 
-from shtmbss2.core.helpers import Process
-from shtmbss2.common.config import *
-from shtmbss2.core.data import (load_config, get_last_experiment_num, get_experiment_folder, get_last_instance,
+from neuroseq.core.helpers import Process
+from neuroseq.common.config import *
+from neuroseq.core.data import (load_config, get_last_experiment_num, get_experiment_folder, get_last_instance,
                                 save_instance_setup, load_yaml)
-from shtmbss2.common.executor import ParallelExecutor
-from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
-from shtmbss2.core.performance import PerformanceMulti
-from shtmbss2.core.logging import log
+from neuroseq.common.executor import ParallelExecutor
+from neuroseq.core.parameters import NetworkParameters, PlottingParameters
+from neuroseq.core.performance import PerformanceMulti
+from neuroseq.core.logging import log
 
 np.set_printoptions(threshold=np.inf, suppress=True, linewidth=np.inf)
 warnings.filterwarnings(action='ignore', category=UserWarning)

@@ -1,17 +1,15 @@
 import os
-
-from shtmbss2.nest.learning import Plasticity
-
 os.environ["PYNEST_QUIET"] = "1"
 
 from quantities import ms
 from neo.core.spiketrainlist import SpikeTrain, SpikeTrainList
 
-from shtmbss2.nest.config import *
-from shtmbss2.core.logging import log
-import shtmbss2.common.network as network
-from shtmbss2.core.helpers import id_to_symbol
-from shtmbss2.common.config import NeuronType, RecTypes
+from neuroseq.nest.config import *
+from neuroseq.nest.learning import Plasticity
+from neuroseq.core.logging import log
+from neuroseq.common import network
+from neuroseq.core.helpers import id_to_symbol
+from neuroseq.common.config import NeuronType, RecTypes
 
 import nest
 import pyNN.nest as pynn

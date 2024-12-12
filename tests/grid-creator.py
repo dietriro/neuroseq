@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox, filedialog
 from ttkthemes import ThemedStyle
 import csv
 
-from shtmbss2.common.config import PATH_MAPS
+from neuroseq.common.config import PATH_MAPS
 
 
 class Location:

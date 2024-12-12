@@ -4,15 +4,15 @@ import copy
 from matplotlib import pyplot as plt
 from tabulate import tabulate
 
-from shtmbss2.brainscales2.config import *
-from shtmbss2.brainscales2.learning import Plasticity, PlasticitySingleNeuron, OnChipPlasticityDummy
-from shtmbss2.brainscales2.patches import patch_pynn_calibration
-from shtmbss2.brainscales2.plasticity import PlasticityOnChip
-from shtmbss2.brainscales2.hardware import hardware_initialization
-from shtmbss2.core.logging import log
-from shtmbss2.core.helpers import id_to_symbol
-import shtmbss2.common.network as network
-from shtmbss2.common.config import NeuronType, RecTypes
+from neuroseq.brainscales2.config import *
+from neuroseq.brainscales2.learning import Plasticity, PlasticitySingleNeuron, OnChipPlasticityDummy
+from neuroseq.brainscales2.patches import patch_pynn_calibration
+from neuroseq.brainscales2.plasticity import PlasticityOnChip
+from neuroseq.brainscales2.hardware import hardware_initialization
+from neuroseq.core.logging import log
+from neuroseq.core.helpers import id_to_symbol
+import neuroseq.common.network as network
+from neuroseq.common.config import NeuronType, RecTypes
 
 from pynn_brainscales import brainscales2 as pynn
 from pynn_brainscales.brainscales2 import simulator, Projection, PopulationView

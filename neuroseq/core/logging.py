@@ -1,4 +1,4 @@
-from shtmbss2.common.config import *
+from neuroseq.common.config import *
 
 
 def addLoggingLevel(levelName, levelNum, methodName=None):

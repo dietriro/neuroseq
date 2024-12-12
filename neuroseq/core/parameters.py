@@ -1,9 +1,9 @@
 import inspect
 from abc import ABC
 
-from shtmbss2.common.config import *
-from shtmbss2.core.logging import log
-from shtmbss2.core.data import load_config, get_experiment_folder, load_yaml, gen_map_name
+from neuroseq.common.config import *
+from neuroseq.core.logging import log
+from neuroseq.core.data import load_config, get_experiment_folder, load_yaml, gen_map_name
 
 
 class ParameterGroup:
