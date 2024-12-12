@@ -3,11 +3,18 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from pynn_brainscales.brainscales2 import Projection
-from shtmbss2.common.config import SYMBOLS, NeuronType
-from shtmbss2.common.network import SHTMTotal, ID_PRE, ID_POST
+from shtmbss2.common.config import SYMBOLS, NeuronType, RuntimeConfig, Backends
+from shtmbss2.common import network
 from shtmbss2.core.helpers import symbol_from_label, calculate_trace
 from shtmbss2.core.logging import log
+
+if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
+    from pynn_brainscales.brainscales2 import Projection
+elif RuntimeConfig.backend == Backends.NEST:
+    from pyNN.nest.projections import Projection
+else:
+    raise Exception(f"Backend {RuntimeConfig.backend} not implemented yet. "
+                    f"Please choose among [{Backends.BRAIN_SCALES_2}, {Backends.NEST}]")
 
 
 class Plasticity(ABC):
@@ -20,7 +27,7 @@ class Plasticity(ABC):
         # custom objects
         self.projection = projection
         self.proj_post_soma_inh = proj_post_soma_inh
-        self.shtm: SHTMTotal = shtm
+        self.shtm: network.SHTMTotal = shtm
         self.post_somas = post_somas
 
         # editable/changing variables
@@ -64,8 +71,8 @@ class Plasticity(ABC):
 
         self.learning_rules = {"original": self.rule, "bss2": self.rule_bss2}
 
-        self.symbol_id_pre = SYMBOLS[symbol_from_label(self.projection.label, ID_PRE)]
-        self.symbol_id_post = SYMBOLS[symbol_from_label(self.projection.label, ID_POST)]
+        self.symbol_id_pre = SYMBOLS[symbol_from_label(self.projection.label, network.ID_PRE)]
+        self.symbol_id_post = SYMBOLS[symbol_from_label(self.projection.label, network.ID_POST)]
 
         self.connections = list()
 
@@ -282,10 +289,10 @@ class Plasticity(ABC):
         self.weights = [np.copy(self.projection.get("weight", format="array").flatten())]
 
     def get_pre_symbol(self):
-        return symbol_from_label(self.projection.label, ID_PRE)
+        return symbol_from_label(self.projection.label, network.ID_PRE)
 
     def get_post_symbol(self):
-        return symbol_from_label(self.projection.label, ID_POST)
+        return symbol_from_label(self.projection.label, network.ID_POST)
 
     def get_connection_ids(self, connection_id):
         connection_ids = (f"{self.get_connection_id_pre(self.get_connections()[connection_id])}>"

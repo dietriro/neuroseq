@@ -17,13 +17,12 @@ from abc import abstractmethod
 from copy import deepcopy
 
 from shtmbss2.common.config import *
-from shtmbss2.common.learning import Plasticity
+from shtmbss2.common import learning
 from shtmbss2.core.logging import log
 from shtmbss2.core.parameters import NetworkParameters, PlottingParameters
 from shtmbss2.core.performance import PerformanceSingle
 from shtmbss2.core.helpers import (Process, id_to_symbol, calculate_trace,
                                    psp_max_2_psc_max)
-from shtmbss2.common.config import NeuronType, RecTypes
 from shtmbss2.common.plot import plot_dendritic_events
 from shtmbss2.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
 from shtmbss2.core.map import Map, LabelTypes
@@ -1072,7 +1071,7 @@ class SHTMTotal(SHTMBase, ABC):
                                                                       self.p.network.num_neurons))
 
         if plasticity_cls is None:
-            self.plasticity_cls = Plasticity
+            self.plasticity_cls = learning.Plasticity
         else:
             self.plasticity_cls = plasticity_cls
 
