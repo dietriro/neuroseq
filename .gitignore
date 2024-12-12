@@ -1,6 +1,7 @@
 # Custom
 .idea/
 ./venv
+~*/
 
 # Evaluation
 plasticity.npz
