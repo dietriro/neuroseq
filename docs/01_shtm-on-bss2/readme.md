@@ -19,8 +19,6 @@ Currently, the plots can be replicated using the plotting files in the `scripts`
 
 ## 3 References
 
----
-
 [1]&nbsp;&nbsp;&nbsp; R. Dietrich, P. Spilger, E. Muller, J. Schemmel, and A. C. Knoll, “[Sequence Learning with Analog Neuromorphic Multi-Compartment Neurons and On-Chip Structural STDP](doi.org/),” in Lecture Notes of Computer Science, Springer Nature, TBP.
 
 [2]&nbsp;&nbsp;&nbsp; Y. Bouhadjar, D. J. Wouters, M. Diesmann, and T. Tetzlaff, “[Sequence learning, prediction, and replay in networks of spiking neurons](doi.org/10.1371/journal.pcbi.1010233),” PLOS Computational Biology, Jun. 2022.

@@ -1,6 +1,5 @@
 # Neuromorphic Sequential Learning and Replay with Spiking Neural Networks
 
----
 This repository contains code for training a spiking neural network (SNN) on sequential data as well as replaying already learned sequences for e.g. planning purposes. The code is used in multiple papers [[1, 2]](#3-references), and based upon the spiking hierarchical memory (S-HTM) model indroduced by Bouhadjar et al. (2022) [[3]](#3-references). Specific instructions regarding code and configurations specific to these publications can be found in the `docs` folder.
 
 | ![Plot of multi-compartment neuron activity on BrainScaleS-2](docs/01_shtm-on-bss2/resources/fig_shtm-bss2_plot-and-mc-neuron.png)                                             | ![Sketch of the backtracing problem in a navigation domain](docs/02_shtm-backtracing/resources/shtm_path-planning_problem.svg)                                                    |
@@ -10,7 +9,6 @@ This repository contains code for training a spiking neural network (SNN) on seq
 
 ## 1 Installation
 
----
 ### 1.1 Installation (NEST Simulation)
 
 
@@ -108,7 +106,6 @@ git checkout <tag_name>
 
 ## 2 Structure & Usage
 
----
 
 The _neuroseq_ package contains code for training an S-HTM network on predefined sequences and to replay information after training. The folders containing the required source, config, and documentation files are listed and described in the table below. 
 
@@ -166,7 +163,6 @@ The remaining part of running the simulation is analogous to the execution on a 
 
 ## 3 References
 
----
 
 [1]&nbsp;&nbsp;&nbsp; R. Dietrich, P. Spilger, E. Muller, J. Schemmel, and A. C. Knoll, “[Sequence Learning with Analog Neuromorphic Multi-Compartment Neurons and On-Chip Structural STDP](doi.org/),” in Lecture Notes of Computer Science, Springer Nature, TBP.
 

@@ -21,9 +21,8 @@ Afterwards, you should be able to proceed as described in the main readme file w
 
 The plots from the paper [[1]](#3-references) can be replicated using the respective scripts in the `plots/paper_shtm-backtracing` folder. 
 
-## 3 References
 
----
+## 3 References
 
 [2]&nbsp;&nbsp;&nbsp; R. Dietrich, P. Spilger, E. Müller, J. Schemmel, and A. C. Knoll, Sequence Learning with Analog “[Neuromorphic
 Multi-Compartment Neurons and On-Chip Structural STDP]()”, Lecture Notes in Computer Science, TBP Jan. 2025.
