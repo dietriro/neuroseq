@@ -186,7 +186,7 @@ class RuntimeConfig(NamedStorage):
     backend = None
     plasticity_location = PlasticityLocation.OFF_CHIP
     backend_initialization = False
-    config_prefix = "shtm2bss_config"
+    config_prefix = "neuroseq_config"
     plot_file_types = [PlotFileType.PNG, PlotFileType.PDF]
     subnum_digits = 2
     instance_digits = 2
@@ -199,7 +199,7 @@ class RuntimeConfig(NamedStorage):
 
 # Logging
 class Log(NamedStorage):
-    FILE = join(PY_PKG_PATH, 'data/log/shtm2bss.log')
+    FILE = join(PY_PKG_PATH, 'data/log/neuroseq.log')
     # FORMAT_FILE = "[%(asctime)s] [%(filename)s:%(lineno)s - %(funcName)20s() ] [%(levelname)-8s] %(message)s"
     FORMAT_FILE = "[%(asctime)s] [%(filename)-20s:%(lineno)-4s] [%(levelname)-8s] %(message)s"
     FORMAT_SCREEN_COLOR = "%(log_color)s%(message)s"
