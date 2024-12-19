@@ -1,14 +1,5 @@
-colorlog
+-r ../requirements.txt
 jupyter
-matplotlib
-numpy
-PyYAML
-setuptools
-pandas
-quantities
 PyNN
-neo
-DateTime
-tabulate
 nestml==6.0.0
-pygsl
+#pygsl

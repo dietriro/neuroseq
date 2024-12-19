@@ -1,0 +1,12 @@
+name: neuroseq
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.5
+  - anaconda
+  - pip
+  - nest-simulator=3.6.0
+  - boost-cpp
+  - gxx_linux-64
+  - pip:
+    - -r requirements.txt

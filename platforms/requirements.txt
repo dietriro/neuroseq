@@ -1,1 +1,11 @@
 colorlog
+matplotlib
+numpy
+PyYAML
+setuptools
+pandas
+quantities
+neo
+DateTime
+tabulate
+networkx
