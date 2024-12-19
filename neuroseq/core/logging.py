@@ -62,8 +62,8 @@ log = logging.getLogger('shtm')
 log.setLevel(logging.DEBUG)
 
 # Check if log-file folder exists
-if not os.path.exists(Log.FILE):
-    os.makedirs(os.path.dirname(Log.FILE))
+if not os.path.exists(os.path.dirname(Log.FILE)):
+    os.makedirs(os.path.dirname(Log.FILE), exist_ok=True)
 
 # Create handler for file
 fh = logging.FileHandler(Log.FILE, mode='w', encoding='utf-8')

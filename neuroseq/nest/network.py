@@ -1,4 +1,5 @@
 import os
+import inspect
 os.environ["PYNEST_QUIET"] = "1"
 
 from quantities import ms
@@ -124,7 +125,13 @@ class SHTMBase(network.SHTMBase, ABC):
 
     def reset(self, store_to_cache=False):
         # ToDo: Have a look if we can keep pynn from running 'store_to_cache' - this takes about a second for 5 epochs
-        pynn.reset(store_to_cache=store_to_cache)
+        if "store_to_cache" in inspect.getcallargs(pynn.reset).keys():
+            # We are using custom code where we can disable store_to_cache
+            pynn.reset(store_to_cache=store_to_cache)
+        else:
+            # We are using the standard code base from pynn and cannot disable store_to_cache
+            pynn.reset()
+
         # re-initialize external input, but not the recorders (doesn't work with nest)
         self.init_external_input(init_recorder=False, init_performance=False)
 
