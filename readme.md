@@ -42,11 +42,11 @@ chmod +x conda.sh
 3. Setup conda environment
 
 ```bash
-# Create a conda environment (with boost-cpp and gxx being optional, only necessary for e.g. a bare ubuntu docker)
-conda create --name neuroseq -c conda-forge nest-simulator=3.6.0 boost-cpp gxx_linux-64
-# Source new environment
+# Create a conda environment with the given requirements
+conda env create -f neuroseq/platforms/pynn-nest/environment.yaml
+# Source new environment 
 conda activate neuroseq
-# Add neuroseq package to Python Path
+# Add neuroseq package to Python Path (you might want to add this to the end of your ~/.bashrc file)
 export PYTHONPATH=/path/to/repository:$PYTHONPATH
 # Alternatively, install the package
 cd /path/to/repository
