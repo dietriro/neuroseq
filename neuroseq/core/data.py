@@ -52,11 +52,11 @@ def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config
         log.error(f"Unknown config type '{config_type}'. Aborting.")
         return None
 
-    return load_yaml(CONFIG_FOLDERS[config_type], config_file_name)
+    return load_yaml(RuntimeConfig.Paths.folders_config[config_type], config_file_name)
 
 
 def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None) -> int:
-    file_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
+    file_path = join(RuntimeConfig.Paths.folders_experiment[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     if not exists(file_path):
         return 0
@@ -90,7 +90,7 @@ def get_experiment_folder(experiment_type, experiment_id, experiment_num, experi
         folder_name = f"SHTMTotal_{experiment_id}_{experiment_num:02d}"
     else:
         folder_name = f"{experiment_id}_{experiment_map}_{experiment_num:02d}"
-    folder_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend],
+    folder_path = join(RuntimeConfig.Paths.folders_experiment[RuntimeConfig.backend],
                        str(EXPERIMENT_SUBFOLDERS[experiment_type]),
                        folder_name)
     folder_path_ret = folder_path
@@ -254,7 +254,7 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
     experiment_type = net.p.experiment.type
     experiment_id = net.p.experiment.id
 
-    file_path = join(EXPERIMENT_FOLDERS[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
+    file_path = join(RuntimeConfig.Paths.folders_experiment[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     # add the experiment id and network type
     create_eval_file = not exists(file_path)
@@ -300,7 +300,7 @@ def load_experimental_config(experiment_type: ExperimentType, network_type, expe
     :return: A list of all metrics or only of the metric given in the parameters of the function.
     """
 
-    file_path = join(EXPERIMENT_FOLDERS[network_type.__name__], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
+    file_path = join(RuntimeConfig.Paths.folders_experiment[network_type.__name__], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     if not exists(file_path):
         return 0

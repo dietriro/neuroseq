@@ -169,7 +169,7 @@ class NetworkParameters(Parameters):
             self.network.num_symbols = SYMBOLS[max_symbol] + 1
 
     def load_sequences_from_config(self):
-        environments = load_yaml(PATH_CONFIG, f"{RuntimeConfig.config_prefix}_environments.yaml")
+        environments = load_yaml(RuntimeConfig.Paths.config, f"{RuntimeConfig.config_prefix}_environments.yaml")
         map_name = gen_map_name(self.experiment.map_name)
         if map_name in environments.keys():
             self.experiment.sequences = environments[f"map_{self.experiment.map_name}"]["sequences"]

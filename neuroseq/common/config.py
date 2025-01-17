@@ -14,6 +14,7 @@ os.environ["HWLOC_COMPONENTS"] = "-gl"
 
 
 PY_PKG_PATH = split(dirname(neuroseq.__file__))[0]
+PY_PKG_PATH_DEFAULT = split(dirname(neuroseq.__file__))[0]
 
 
 class NeuronTypeABC(ABC):
@@ -196,10 +197,38 @@ class RuntimeConfig(NamedStorage):
     saved_plasticity_vars = ["permanence", "permanence_min", "permanences", "weights", "x", "z"]
     saved_instance_params = []
 
+    class Paths(NamedStorage):
+        package = None
+        config = None
+        models = None
+        maps = None
+        folders_config = None
+        folders_experiment = None
+
+        @classmethod
+        def update_package_path(cls, new_package_path):
+            cls.package = new_package_path
+
+            cls.config = join(cls.package, 'config')
+            cls.models = join(cls.package, 'models')
+            cls.maps = join(cls.package, 'data', 'maps')
+
+            cls.folders_config = {
+                ConfigType.NETWORK: cls.config,
+                ConfigType.PLOTTING: join(cls.config, ConfigType.PLOTTING)
+            }
+
+            cls.folders_experiment = {
+                Backends.NEST: join(cls.package, 'data/evaluation/nest'),
+                Backends.BRAIN_SCALES_2: join(cls.package, 'data/evaluation/bss2')
+            }
+
+        update_package_path(PY_PKG_PATH_DEFAULT)
+
 
 # Logging
 class Log(NamedStorage):
-    FILE = join(PY_PKG_PATH, 'data/log/neuroseq.log')
+    FILE = join(RuntimeConfig.Paths.package, 'data/log/neuroseq.log')
     # FORMAT_FILE = "[%(asctime)s] [%(filename)s:%(lineno)s - %(funcName)20s() ] [%(levelname)-8s] %(message)s"
     FORMAT_FILE = "[%(asctime)s] [%(filename)-20s:%(lineno)-4s] [%(levelname)-8s] %(message)s"
     FORMAT_SCREEN_COLOR = "%(log_color)s%(message)s"
@@ -209,19 +238,6 @@ class Log(NamedStorage):
     DATEFMT = '%d.%m.%Y %H:%M:%S'
 
 
-PATH_CONFIG = join(PY_PKG_PATH, 'config')
-PATH_MODELS = join(PY_PKG_PATH, 'models')
-PATH_MAPS = join(PY_PKG_PATH, 'data', 'maps')
-
-CONFIG_FOLDERS = {
-    ConfigType.NETWORK: PATH_CONFIG,
-    ConfigType.PLOTTING: join(PATH_CONFIG, ConfigType.PLOTTING)
-}
-
-EXPERIMENT_FOLDERS = {
-    Backends.NEST: join(PY_PKG_PATH, 'data/evaluation/nest'),
-    Backends.BRAIN_SCALES_2: join(PY_PKG_PATH, 'data/evaluation/bss2')
-}
 EXPERIMENT_SUBFOLDERS = {
     ExperimentType.EVAL_SINGLE: 'single',
     ExperimentType.EVAL_MULTI: 'multi',

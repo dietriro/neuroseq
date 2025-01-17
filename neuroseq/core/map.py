@@ -149,7 +149,7 @@ class Map:
         :rtype: None
         """
         # retrieve file path for map name
-        file_path = join(PATH_MAPS, f'map_{self.map_name}.csv')
+        file_path = join(RuntimeConfig.Paths.maps, f'map_{self.map_name}.csv')
         # retrieve 2d grid-map from file
         self.grid_map = self.load_map(file_path)
         # create directional graph (DiGraph) with a grid structure (m x n)

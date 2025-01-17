@@ -6,7 +6,7 @@ from tkinter import ttk, messagebox, filedialog
 from ttkthemes import ThemedStyle
 import csv
 
-from neuroseq.common.config import PATH_MAPS
+from neuroseq.common.config import RuntimeConfig
 
 
 class Location:
@@ -124,7 +124,7 @@ class GridCreator:
         self.resize_slider.grid(column=2, row=4, sticky="nsew", padx=5, pady=5)
 
         # Buttons for loading/saving map
-        map_files = [map_file for map_file in os.listdir(PATH_MAPS) if map_file.endswith('.csv')]
+        map_files = [map_file for map_file in os.listdir(RuntimeConfig.Paths.maps) if map_file.endswith('.csv')]
         map_files = sorted(map_files)
 
         self.load_map_var = tk.StringVar()
@@ -407,7 +407,7 @@ class GridCreator:
 
     def load_map(self):
         try:
-            map_path = os.path.join(PATH_MAPS, self.load_map_var.get())
+            map_path = os.path.join(RuntimeConfig.Paths.maps, self.load_map_var.get())
             if not os.path.exists(map_path):
                 messagebox.showerror("Error", f"Failed to load map, path does not exist: {map_path}")
 
@@ -438,7 +438,7 @@ class GridCreator:
                 return
 
             filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")],
-                                                    initialdir=PATH_MAPS)
+                                                    initialdir=RuntimeConfig.Paths.maps)
             if filename:
                 with open(filename, "w", newline="") as csvfile:
                     csvwriter = csv.writer(csvfile)
