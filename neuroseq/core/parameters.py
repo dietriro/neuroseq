@@ -70,14 +70,14 @@ class Parameters(ParameterGroup):
 
         log.debug(f"Successfully set parameters")
 
-    def load_default_params(self, network_state=None, map_name=None, custom_params=None, custom_path=None):
+    def load_default_params(self, network_mode=None, map_name=None, custom_params=None, custom_path=None):
         if custom_path is not None:
             if not os.path.exists(custom_path):
                 log.error(f"File '{custom_path}' does not exist.")
                 return
             default_params = load_yaml(custom_path)
         else:
-            default_params = load_config(self.network_type, config_type=self.config_type, network_state=network_state,
+            default_params = load_config(self.network_type, config_type=self.config_type, network_mode=network_mode,
                                          map_name=map_name)
         self.set_params(self, default_params)
 

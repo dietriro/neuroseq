@@ -74,7 +74,7 @@ class SHTMBase(ABC):
         self.experiment_subnum = experiment_subnum
         self.experiment_episodes = 0
         self.instance_id = instance_id
-        self.network_state = NetworkState.PREDICTIVE
+        self.network_mode = NetworkState.PREDICTIVE
 
         # Load pre-defined parameters
         self.p_plot: PlottingParameters = PlottingParameters(network_type=self)
@@ -139,7 +139,7 @@ class SHTMBase(ABC):
         self.random_seed = self.p.experiment.seed_offset + instance_offset
 
     def load_params(self, experiment_type, experiment_id, experiment_num, instance_id, **kwargs):
-        self.p_plot.load_default_params(network_state=self.network_state, map_name=self.p.experiment.map_name)
+        self.p_plot.load_default_params(network_mode=self.network_mode, map_name=self.p.experiment.map_name)
         if experiment_type == ExperimentType.OPT_GRID and instance_id > 0:
             self.p.load_experiment_params(experiment_type=ExperimentType.OPT_GRID, experiment_id=experiment_id,
                                           experiment_num=experiment_num, experiment_subnum=0,
@@ -248,7 +248,7 @@ class SHTMBase(ABC):
 
             for i_seq, sequence in enumerate(sequences):
                 for i_element, element in enumerate(sequence):
-                    if self.network_state == NetworkState.REPLAY:
+                    if self.network_mode == NetworkState.REPLAY:
                         if i_element == 0 and self.p.network.replay_mode == ReplayMode.PARALLEL:
                             spike_time = self.p.encoding.t_exc_start
                         elif i_element == 0 and self.p.network.replay_mode == ReplayMode.CONSECUTIVE:
@@ -424,21 +424,25 @@ class SHTMBase(ABC):
     def reset(self, store_to_cache=False):
         pass
 
-    def set_state(self, new_network_state, target=None):
+    def set_state(self, new_network_mode, target=None):
         self.target = target
         # define new neuron/network params based on network-state
-        if new_network_state == NetworkState.PREDICTIVE:
+        if new_network_mode == NetworkState.PREDICTIVE:
             v_thresh = self.p.neurons.excitatory.v_thresh
             theta_dAP = self.p.neurons.dendrite.theta_dAP
             weight_factor = 1
-        elif new_network_state == NetworkState.REPLAY:
+            self.p.replay.target = None
+        elif new_network_mode == NetworkState.REPLAY:
             v_thresh = self.p.replay.v_thresh
             theta_dAP = self.p.replay.theta_dAP
             weight_factor = self.p.replay.weight_factor_exc_inh
             self.neuron_events_hist = list()
             self.neuron_thresholds_hist = list()
+            self.p.replay.target = target
         else:
             return
+        self.experiment_episodes = 0
+        self.p.experiment.episodes = 0
 
         # update neuron parameters
         for i_sym in range(len(self.neurons_exc)):
@@ -467,16 +471,17 @@ class SHTMBase(ABC):
                               self.p.synapses.w_exc_inh * self.p.network.pattern_size * 2)
             inh_global.set(weight=weights)
 
-        self.network_state = new_network_state
+        self.network_mode = new_network_mode
+        RuntimeConfig.file_prefix = self.network_mode
 
-        if self.network_state == NetworkState.REPLAY:
+        if self.network_mode == NetworkState.REPLAY:
             self.neuron_thresholds_hist.append(
                 [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)])
 
         self.map.reset_graph_history()
 
         # reload plotting parameters for new network state
-        self.p_plot.load_default_params(network_state=self.network_state, map_name=self.p.experiment.map_name)
+        self.p_plot.load_default_params(network_mode=self.network_mode, map_name=self.p.experiment.map_name)
 
     def update_adapt_thresholds(self, num_active_neuron_thresh=None):
         if num_active_neuron_thresh is None:
@@ -578,7 +583,7 @@ class SHTMBase(ABC):
         if size is None:
             size = self.p_plot.events.size
 
-        if self.network_state == NetworkState.REPLAY and replay_runtime is None:
+        if self.network_mode == NetworkState.REPLAY and replay_runtime is None:
             log.error("Replay runtime not set. Aborting.")
             return
 
@@ -600,7 +605,7 @@ class SHTMBase(ABC):
                 x_lim_lower = run_id * single_run_length
             if x_lim_upper is None:
                 x_lim_upper = (run_id + 1) * single_run_length - self.p.encoding.dt_seq * 0.9
-                if self.network_state == NetworkState.REPLAY:
+                if self.network_mode == NetworkState.REPLAY:
                     x_lim_upper = self.max_spike_time + self.p.encoding.t_exc_start
 
         if type(symbols) is str and symbols == "all":
@@ -614,7 +619,7 @@ class SHTMBase(ABC):
 
         if not separate_seqs:
             n_cols = 1
-        elif self.network_state == NetworkState.REPLAY:
+        elif self.network_mode == NetworkState.REPLAY:
             n_cols = len(self.neuron_events_hist)
         else:
             n_cols = len(self.p.experiment.sequences)
@@ -645,7 +650,7 @@ class SHTMBase(ABC):
             spike_offset = 0
             neuron_events = self.neuron_events
             if n_cols > 1:
-                if self.network_state == NetworkState.PREDICTIVE:
+                if self.network_mode == NetworkState.PREDICTIVE:
                     x_lim_upper = (x_lim_lower + (len(self.p.experiment.sequences[i_seq]) - 0.5)
                                    * self.p.encoding.dt_stm + self.p.encoding.t_exc_start)
                 else:
@@ -667,7 +672,7 @@ class SHTMBase(ABC):
                     if neurons_i == NeuronType.Inhibitory:
                         spikes.append([])
                     elif neurons_i == NeuronType.InhibitoryGlobal:
-                        if self.network_state == NetworkState.PREDICTIVE:
+                        if self.network_mode == NetworkState.PREDICTIVE:
                             continue
                         for _ in range(self.p.network.num_neurons + 1):
                             spikes.insert(0, [])
@@ -697,7 +702,7 @@ class SHTMBase(ABC):
                     if spike_offset > 0:
                         spikes_ext_i = self.add_offset_to_events(spikes_ext_i, spike_offset)
                     # add negative offset to external spikes during replay for better visibility
-                    if self.network_state == NetworkState.REPLAY:
+                    if self.network_mode == NetworkState.REPLAY:
                         spikes_ext_i = self.add_offset_to_events(spikes_ext_i, -4)
                     ax.eventplot(spikes_ext_i, linewidths=self.p_plot.events.events.width,
                                  linelengths=self.p_plot.events.events.height, label="External", color=f"grey")
@@ -711,9 +716,9 @@ class SHTMBase(ABC):
                 ax.set_xlim(x_lim_lower, x_lim_upper)
                 # increase upper/lower space if large_layout is set - increases visibility of local/global inh.
                 if large_layout:
-                    ax.set_ylim(-3, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY) + 2)
+                    ax.set_ylim(-3, self.p.network.num_neurons + 1 + int(self.network_mode == NetworkState.REPLAY) + 2)
                 else:
-                    ax.set_ylim(-1, self.p.network.num_neurons + 1 + int(self.network_state == NetworkState.REPLAY))
+                    ax.set_ylim(-1, self.p.network.num_neurons + 1 + int(self.network_mode == NetworkState.REPLAY))
 
                 if i_seq < 1:
                     ax.set_ylabel(id_to_symbol(i_symbol), weight='bold',
@@ -722,15 +727,15 @@ class SHTMBase(ABC):
                     # set ticks for y-axis only if enabled
                     if enable_y_ticks:
                         y_label = "Symbol & Neuron ID"
-                        if self.network_state == NetworkState.REPLAY and separate_seqs:
+                        if self.network_mode == NetworkState.REPLAY and separate_seqs:
                             ax.tick_params(axis='y', labelsize=self.p_plot.events.fontsize.tick_labels)
                         else:
                             ax.yaxis.set_ticks(range(self.p.network.num_neurons + 2
-                                                     + int(self.network_state == NetworkState.REPLAY)))
+                                                     + int(self.network_mode == NetworkState.REPLAY)))
                             # Generate y-tick-labels based on number of neurons per symbol
                             y_tick_labels = ['Inh', '', '0'] + ['' for _ in range(self.p.network.num_neurons - 2)] + [
                                 str(self.p.network.num_neurons - 1)]
-                            if self.network_state == NetworkState.REPLAY:
+                            if self.network_mode == NetworkState.REPLAY:
                                 y_tick_labels += ['Inh-G']
                             ax.set_yticklabels(y_tick_labels, rotation=45,
                                                fontsize=self.p_plot.events.fontsize.tick_labels)
@@ -751,13 +756,13 @@ class SHTMBase(ABC):
                         x_tick_step = self.p.encoding.dt_stm / 2
                     ax.xaxis.set_ticks(np.arange(x_lim_lower, x_lim_upper, x_tick_step))
 
-                if self.network_state == NetworkState.REPLAY and n_cols > 1 and i_symbol == 0:
+                if self.network_mode == NetworkState.REPLAY and n_cols > 1 and i_symbol == 0:
                     ax.set_title(f"Replay {i_seq + 1}", fontsize=self.p_plot.events.fontsize.subplot_labels,
                                  pad=self.p_plot.events.padding.subplot_title)
 
             ax.tick_params(axis='x', labelsize=self.p_plot.events.fontsize.tick_labels)
 
-            if self.network_state == NetworkState.REPLAY and n_cols > 1:
+            if self.network_mode == NetworkState.REPLAY and n_cols > 1:
                 x_lim_lower += replay_runtime + self.p.encoding.dt_seq
             else:
                 x_lim_lower += (len(
@@ -1306,7 +1311,7 @@ class SHTMTotal(SHTMBase, ABC):
 
         for t in range(steps):
             log.info(
-                f'Running {self.network_state} step {self.experiment_episodes + t + 1}/{self.experiment_episodes + steps}')
+                f'Running {self.network_mode} step {self.experiment_episodes + t + 1}/{self.experiment_episodes + steps}')
 
             # reset the simulator and the network state if not first run
             if self.run_state:
@@ -1322,10 +1327,10 @@ class SHTMTotal(SHTMBase, ABC):
 
             self._retrieve_neuron_data()
 
-            if self.network_state == NetworkState.REPLAY:
+            if self.network_mode == NetworkState.REPLAY:
                 self.neuron_events_hist.append(self.neuron_events)
 
-            if self.p.performance.compute_performance and self.network_state == NetworkState.PREDICTIVE:
+            if self.p.performance.compute_performance and self.network_mode == NetworkState.PREDICTIVE:
                 self.performance.compute(neuron_events=self.neuron_events,
                                          method=self.p.performance.method)
 
@@ -1350,7 +1355,7 @@ class SHTMTotal(SHTMBase, ABC):
             if self.p.plasticity.learning_rate_decay is not None:
                 self.p.plasticity.learning_factor *= self.p.plasticity.learning_rate_decay
 
-            if self.network_state == NetworkState.REPLAY:
+            if self.network_mode == NetworkState.REPLAY:
                 self.update_adapt_thresholds(num_active_neuron_thresh=num_active_neuron_thresh)
                 neuron_thresholds = [self.neurons_exc[i_sym].get("V_th") for i_sym in range(self.p.network.num_symbols)]
                 self.neuron_thresholds_hist.append(neuron_thresholds)
@@ -1566,9 +1571,6 @@ class SHTMTotal(SHTMBase, ABC):
     def save_full_state(self, running_avg_perc=0.5, optimized_parameter_ranges=None, save_setup=False):
         log.debug("Saving full state of network and experiment.")
 
-        if self.network_state == NetworkState.REPLAY:
-            self.p.experiment.id += f"_{NetworkState.REPLAY}"
-
         if (self.p.experiment.type in
                 [ExperimentType.EVAL_MULTI, ExperimentType.OPT_GRID, ExperimentType.OPT_GRID_MULTI]):
             if self.instance_id is not None and self.instance_id == 0 and save_setup:
@@ -1632,9 +1634,11 @@ class SHTMTotal(SHTMBase, ABC):
 
     @staticmethod
     def load_full_state(network_type, experiment_id, experiment_num, experiment_map=None,
-                        experiment_type=ExperimentType.EVAL_SINGLE,
-                        experiment_subnum=None, instance_id=None, debug=False, custom_params=None):
+                        experiment_type=ExperimentType.EVAL_SINGLE, experiment_subnum=None,
+                        network_mode=NetworkState.PREDICTIVE, instance_id=None, debug=False, custom_params=None):
         log.debug("Loading full state of network and experiment.")
+
+        RuntimeConfig.file_prefix = network_mode
 
         p = NetworkParameters(network_type=network_type)
         p.load_experiment_params(experiment_type=experiment_type, experiment_id=experiment_id,
@@ -1643,9 +1647,10 @@ class SHTMTotal(SHTMBase, ABC):
                                  custom_params=custom_params)
 
         shtm = network_type(p=p)
+        shtm.network_mode = network_mode
 
         shtm.p_plot = PlottingParameters(network_type=network_type)
-        shtm.p_plot.load_default_params(network_state=shtm.network_state, map_name=shtm.p.experiment.map_name)
+        shtm.p_plot.load_default_params(network_mode=shtm.network_mode, map_name=shtm.p.experiment.map_name)
 
         shtm.performance.load_data(shtm, experiment_type, experiment_id, experiment_num, experiment_map=experiment_map,
                                    experiment_subnum=experiment_subnum, instance_id=instance_id)

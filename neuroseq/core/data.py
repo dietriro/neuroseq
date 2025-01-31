@@ -15,6 +15,7 @@ from neuroseq.core.logging import log
 COL_EXPERIMENT_ID = 0
 COL_EXPERIMENT_MAP = 1
 COL_EXPERIMENT_NUM = 2
+COL_EXPERIMENT_MODE = 4
 
 
 def load_yaml(path_yaml, file_name_yaml=None):
@@ -30,7 +31,7 @@ def load_yaml(path_yaml, file_name_yaml=None):
 
 
 def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config_type=ConfigType.NETWORK,
-                network_state=None, map_name=None):
+                network_mode=None, map_name=None):
     if not inspect.isclass(network_type):
         network_type = type(network_type)
 
@@ -43,8 +44,8 @@ def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config
                             f"{RuntimeConfig.backend}_{network_type.__name__}{plasticity_location}.yaml")
     elif config_type == ConfigType.PLOTTING:
         config_file_name = f"{RuntimeConfig.config_prefix}_{config_type}"
-        if network_state is not None and os.path.exists(f"{config_file_name}_{network_state.lower()}"):
-            config_file_name += f"_{network_state.lower()}"
+        if network_mode is not None and os.path.exists(f"{config_file_name}_{network_mode.lower()}"):
+            config_file_name += f"_{network_mode.lower()}"
             if map_name is not None and os.path.exists(f"{config_file_name}_{map_name.split('_')[0].lower()}"):
                     config_file_name += f"_{map_name.split('_')[0].lower()}"
         config_file_name += f".yaml"
@@ -55,7 +56,7 @@ def load_config(network_type, experiment_type=ExperimentType.EVAL_SINGLE, config
     return load_yaml(RuntimeConfig.Paths.folders_config[config_type], config_file_name)
 
 
-def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None) -> int:
+def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None, network_mode=None) -> int:
     file_path = join(RuntimeConfig.Paths.folders_experiment[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     if not exists(file_path):
@@ -67,8 +68,9 @@ def get_last_experiment_num(experiment_id, experiment_type, experiment_map=None)
 
     for line in lines[::-1]:
         if line[COL_EXPERIMENT_ID] == experiment_id:
-            if experiment_map is None or (experiment_map is not None and line[COL_EXPERIMENT_MAP] == experiment_map):
-                return int(line[COL_EXPERIMENT_NUM])
+            if experiment_map is None or line[COL_EXPERIMENT_MAP] == experiment_map:
+                if network_mode is None or line[COL_EXPERIMENT_MODE] == network_mode:
+                    return int(line[COL_EXPERIMENT_NUM])
 
     return 0
 
@@ -111,8 +113,6 @@ def get_experiment_folder(experiment_type, experiment_id, experiment_num, experi
     return folder_path_ret
 
 
-def save_setup(data, experiment_num, create_eval_file, do_update, file_path, save_categories=False, max_decimals=5,
-               **kwargs):
 def get_experiment_file(file_type, experiment_path=None):
     if RuntimeConfig.file_prefix is not None and RuntimeConfig.file_prefix != "":
         prefix = f"{RuntimeConfig.file_prefix}_"
@@ -125,6 +125,8 @@ def get_experiment_file(file_type, experiment_path=None):
         return file_name
 
 
+def save_setup(data, create_eval_file, do_update, file_path, experiment_id=None, experiment_num=None,
+               experiment_map=None, network_mode=None, save_categories=False, max_decimals=5, **kwargs):
     # ToDo: Implement this feature, check if metrics can be added
     # add all static parameters defined above for this specific experiment
     # for param_name in sorted(kwargs):
@@ -205,10 +207,14 @@ def get_experiment_file(file_type, experiment_path=None):
             csvwriter.writerow(headers)
 
         # update last line if this is only an update
-        if do_update:
-            experiment_num_col = headers.index('experiment_num')
+        if do_update and experiment_id is not None and experiment_num is not None and network_mode is not None:
+            col_experiment_num = headers.index('experiment_num')
+            col_network_mode = headers.index('network_mode')
             for line in lines[start_id:]:
-                if int(line[experiment_num_col]) == experiment_num:
+                if int(line[COL_EXPERIMENT_NUM]) == experiment_num \
+                        and line[COL_EXPERIMENT_MODE] == network_mode \
+                        and line[COL_EXPERIMENT_ID] == network_mode \
+                        and (experiment_map is None or line[COL_EXPERIMENT_MAP] == experiment_map):
                     line = values
                 csvwriter.writerow(line)
 
@@ -266,11 +272,13 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
     experiment_type = net.p.experiment.type
     experiment_id = net.p.experiment.id
 
-    file_path = join(RuntimeConfig.Paths.folders_experiment[RuntimeConfig.backend], EXPERIMENT_SETUP_FILE_NAME[experiment_type])
+    file_path = join(RuntimeConfig.Paths.folders_experiment[RuntimeConfig.backend],
+                     EXPERIMENT_SETUP_FILE_NAME[experiment_type])
 
     # add the experiment id and network type
     create_eval_file = not exists(file_path)
-    last_experiment_num = get_last_experiment_num(experiment_id, experiment_type, experiment_map)
+    last_experiment_num = get_last_experiment_num(experiment_id, experiment_type, experiment_map,
+                                                  network_mode=net.network_mode)
     do_update = False
     if experiment_num is None:
         experiment_num = last_experiment_num + 1
@@ -291,12 +299,15 @@ def save_experimental_setup(net, experiment_num=None, experiment_subnum=None, in
     # prepare data for saving
     if optimized_parameter_ranges is None:
         optimized_parameter_ranges = dict()
-    data = {'experiment_id': experiment_id, 'experiment_map': experiment_map, 'experiment_num': f'{experiment_num:02d}',
-            'network_type': str(net), 'time_finished': datetime.datetime.now().strftime('%d.%m.%y - %H:%M')}
+    data = {'experiment_id': experiment_id, 'experiment_map': experiment_map,
+            'experiment_num': f'{experiment_num:02d}', 'network_type': str(net), 'network_mode': net.network_mode,
+            'time_finished': datetime.datetime.now().strftime('%d.%m.%y - %H:%M')}
 
     data = {**data, **optimized_parameter_ranges, **params}
 
-    save_setup(data, experiment_num, create_eval_file, do_update, file_path=file_path, save_categories=True, **kwargs)
+    save_setup(data, create_eval_file, do_update, file_path=file_path, save_categories=True,
+               experiment_id=experiment_id, experiment_num=experiment_num, experiment_map=experiment_map,
+               network_mode=net.network_mode, **kwargs)
 
     return experiment_num
 
