@@ -71,6 +71,14 @@ class NamedStorage:
     def get_all(cls, case=str):
         return [case(v) for n, v in vars(cls).items() if not (n.startswith('_') or callable(v))]
 
+    @classmethod
+    def get_file_name(cls, file_type):
+        file_name_full = getattr(cls, file_type)
+        if '.' in file_name_full:
+            return file_name_full.split('.')[0]
+        else:
+            return file_name_full
+
 
 class Backends(NamedStorage):
     BRAIN_SCALES_2 = 'bss2'
@@ -120,11 +128,9 @@ class Colors(NamedStorage):
     GREEN = "green"
 
 
-class FileType(NamedStorage):
-    DATA = 'data'
-    FIGURE = 'figure'
-    MODEL = 'model'
-    OPTIMIZATION = 'optimization'
+class ConfigType(NamedStorage):
+    NETWORK = 'network'
+    PLOTTING = 'plotting'
 
 
 class PlotFileType(NamedStorage):
@@ -133,17 +139,25 @@ class PlotFileType(NamedStorage):
     JPG = "jpg"
 
 
+class FileNames(NamedStorage):
+    CONFIG = {ConfigType.NETWORK: "config_network.yaml",
+              ConfigType.PLOTTING: "config_plotting.yaml"}
+    EVENTS = "events.pkl"
+    GRAPH = "graph.gif"
+    NETWORK = "network.npz"
+    PERFORMANCE = "performance.npz"
+    PLASTICITY = "plasticity.npz"
+    WEIGHTS = "weights.npz"
+    PLOT_EVENTS = "plot_events."
+    TEST = "checkfile.yaml"
+
+
 class ExperimentType(NamedStorage):
     EVAL_SINGLE = 'eval-single'
     EVAL_MULTI = 'eval-multi'
     OPT_GRID = 'opt-grid'
     OPT_GRID_MULTI = 'opt-grid-multi'
     INSTANCE = 'instance'
-
-
-class ConfigType(NamedStorage):
-    NETWORK = 'network'
-    PLOTTING = 'plotting'
 
 
 class PlasticityLocation(NamedStorage):
@@ -192,6 +206,7 @@ class RuntimeConfig(NamedStorage):
     plasticity_location = PlasticityLocation.OFF_CHIP
     backend_initialization = False
     config_prefix = "neuroseq_config"
+    file_prefix = NetworkState.PREDICTIVE
     plot_file_types = [PlotFileType.PNG, PlotFileType.PDF]
     subnum_digits = 2
     instance_digits = 2

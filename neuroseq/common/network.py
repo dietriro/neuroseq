@@ -26,7 +26,8 @@ from neuroseq.core.performance import PerformanceSingle
 from neuroseq.core.helpers import (Process, id_to_symbol, calculate_trace,
                                    psp_max_2_psc_max)
 from neuroseq.common.plot import plot_dendritic_events
-from neuroseq.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder)
+from neuroseq.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder,
+                                get_experiment_file)
 from neuroseq.core.map import Map, LabelTypes
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
@@ -83,6 +84,9 @@ class SHTMBase(ABC):
         else:
             self.p: NetworkParameters = deepcopy(p)
         self.p.experiment.type = experiment_type
+
+        if RuntimeConfig.plasticity_location != self.p.plasticity.location:
+            self.p.plasticity.location = RuntimeConfig.plasticity_location
 
         # Load map data and create new map
         self.map = Map(self.p.experiment.map_name, self.p.experiment.sequences, save_history=True)
@@ -1459,7 +1463,7 @@ class SHTMTotal(SHTMBase, ABC):
         folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
                                             experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
-        file_path = join(folder_path, f"config_network.yaml")
+        file_path = get_experiment_file(FileNames.CONFIG[ConfigType.NETWORK], experiment_path=folder_path)
 
         with open(file_path, 'w') as file:
             yaml.dump(self.p.dict(exclude_none=True), file)
@@ -1468,7 +1472,7 @@ class SHTMTotal(SHTMBase, ABC):
         folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
                                             experiment_map=self.p.experiment.map_name,
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
-        file_path = join(folder_path, "performance")
+        file_path = get_experiment_file(FileNames.PERFORMANCE, experiment_path=folder_path)
 
         np.savez(file_path, **self.performance.data)
 
@@ -1479,7 +1483,7 @@ class SHTMTotal(SHTMBase, ABC):
                                             experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
 
         # Save weights
-        file_path = join(folder_path, "weights")
+        file_path = get_experiment_file(FileNames.WEIGHTS, experiment_path=folder_path)
 
         weights_dict = {var_name: getattr(self, var_name) for var_name in RuntimeConfig.saved_weights}
         for con_name, connections in weights_dict.items():
@@ -1491,19 +1495,19 @@ class SHTMTotal(SHTMBase, ABC):
         np.savez(file_path, **weights_dict)
 
         # Save events
-        file_path = join(folder_path, "events.pkl")
+        file_path = get_experiment_file(FileNames.EVENTS, experiment_path=folder_path)
         with open(file_path, 'wb') as f:
             pickle.dump(self.neuron_events, f)
 
         # Save network variables
-        file_path = join(folder_path, "network")
+        file_path = get_experiment_file(FileNames.NETWORK, experiment_path=folder_path)
 
         network_dict = {var_name: getattr(self, var_name) for var_name in RuntimeConfig.saved_network_vars}
 
         np.savez(file_path, **network_dict)
 
         # Save plasticity parameters
-        file_path = join(folder_path, "plasticity")
+        file_path = get_experiment_file(FileNames.PLASTICITY, experiment_path=folder_path)
 
         plasticity_dict = {var_name: list() for var_name in RuntimeConfig.saved_plasticity_vars}
         for con_plastic in self.con_plastic:
@@ -1520,7 +1524,7 @@ class SHTMTotal(SHTMBase, ABC):
                          separate_seqs=False, replay_runtime=None, plot_dendritic_trace=True, enable_y_ticks=True,
                          x_tick_step=None, plot_thresholds=False):
         # set plot_name and retrieve experiment folder given the current config
-        plot_name = f"plot_events_{self.network_state.lower()}"
+        plot_name = get_experiment_file(FileNames.PLOT_EVENTS)
         exp_folder_path = get_experiment_folder(self.p.experiment.type, self.p.experiment.id, self.experiment_num,
                                                 experiment_map=self.p.experiment.map_name,
                                                 experiment_subnum=self.experiment_subnum, instance_id=self.instance_id)
@@ -1602,22 +1606,22 @@ class SHTMTotal(SHTMBase, ABC):
                                             instance_id=instance_id)
 
         # Load weights
-        file_path = join(folder_path, "weights.npz")
+        file_path = get_experiment_file(FileNames.WEIGHTS, experiment_path=folder_path)
         data_weights = np.load(file_path)
 
         # Load events
-        file_path = join(folder_path, "events.pkl")
+        file_path = get_experiment_file(FileNames.EVENTS, experiment_path=folder_path)
         with open(file_path, 'rb') as f:
             self.neuron_events = pickle.load(f)
 
         # Load network variables
-        file_path = join(folder_path, "network.npz")
+        file_path = get_experiment_file(FileNames.NETWORK, experiment_path=folder_path)
         data_network = np.load(file_path)
         for var_name, var_value in data_network.items():
             setattr(self, var_name, var_value)
 
         # Load plasticity parameters
-        file_path = join(folder_path, "plasticity.npz")
+        file_path = get_experiment_file(FileNames.PLASTICITY, experiment_path=folder_path)
         data_plasticity = np.load(file_path, allow_pickle=True)
         data_plasticity = dict(data_plasticity)
         for var_name in ["permanences", "weights"]:

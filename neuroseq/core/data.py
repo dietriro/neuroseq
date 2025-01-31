@@ -113,6 +113,18 @@ def get_experiment_folder(experiment_type, experiment_id, experiment_num, experi
 
 def save_setup(data, experiment_num, create_eval_file, do_update, file_path, save_categories=False, max_decimals=5,
                **kwargs):
+def get_experiment_file(file_type, experiment_path=None):
+    if RuntimeConfig.file_prefix is not None and RuntimeConfig.file_prefix != "":
+        prefix = f"{RuntimeConfig.file_prefix}_"
+    else:
+        prefix = ""
+    file_name = f"{prefix}{file_type}"
+    if experiment_path is not None:
+        return join(experiment_path, file_name)
+    else:
+        return file_name
+
+
     # ToDo: Implement this feature, check if metrics can be added
     # add all static parameters defined above for this specific experiment
     # for param_name in sorted(kwargs):

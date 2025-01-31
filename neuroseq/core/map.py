@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 
 from neuroseq.common.config import *
-from neuroseq.core.data import get_last_experiment_num, get_experiment_folder
+from neuroseq.core.data import get_last_experiment_num, get_experiment_folder, get_experiment_file
 from neuroseq.core.logging import log
 
 
@@ -267,6 +267,10 @@ class Map:
     def plot_graph_history(self, network, history_range=None, fps=1, only_traversable=True, arrows=False,
                            label_type=LabelTypes.LETTERS, empty_label="", title="Frame", show_plot=False,
                            experiment_num=None, save_plot=True):
+        if len(self.graph_history) <= 0:
+            log.warning("Cannot plot graph history because graph history is empty.")
+            return
+
         if history_range is None:
             history_range = list(range(len(self.graph_history)))
 
@@ -285,15 +289,14 @@ class Map:
             if experiment_num is None:
                 experiment_num = get_last_experiment_num(network.p.experiment.id, network.p.experiment.type,
                                                          network.p.experiment.map_name) + 1
-            experiment_folder = get_experiment_folder(network.p.experiment.type, network.p.experiment.id,
-                                                      experiment_num, experiment_map=network.p.experiment.map_name)
+            experiment_path = get_experiment_folder(network.p.experiment.type, network.p.experiment.id,
+                                                    experiment_num, experiment_map=network.p.experiment.map_name)
 
-            if not os.path.exists(experiment_folder):
-                os.makedirs(experiment_folder)
+            if not os.path.exists(experiment_path):
+                os.makedirs(experiment_path)
 
-            file_path = join(experiment_folder,
-                             f'graph_{network.network_state}.gif'
-                             )
+            file_path = get_experiment_file(FileNames.GRAPH, experiment_path=experiment_path)
+
             ani.save(file_path, writer='pillow', fps=fps)
 
         if not show_plot:

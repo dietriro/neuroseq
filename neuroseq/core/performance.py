@@ -9,7 +9,7 @@ from neuroseq.core.logging import log
 from neuroseq.core.parameters import NetworkParameters, PlottingParameters
 from neuroseq.core.helpers import moving_average, id_to_symbol
 from neuroseq.common.config import NeuronType
-from neuroseq.core.data import get_experiment_folder
+from neuroseq.core.data import get_experiment_folder, get_experiment_file
 from neuroseq.common.plot import plot_panel_label
 
 
@@ -275,7 +275,7 @@ class Performance(ABC):
                                             experiment_map=experiment_map,
                                             experiment_subnum=experiment_subnum, instance_id=instance_id)
 
-        file_path = join(folder_path, "performance.npz")
+        file_path = get_experiment_file(FileNames.PERFORMANCE, experiment_path=folder_path)
         data_performance = np.load(file_path)
 
         for metric_name in data_performance.files:

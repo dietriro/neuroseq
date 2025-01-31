@@ -3,7 +3,7 @@ from abc import ABC
 
 from neuroseq.common.config import *
 from neuroseq.core.logging import log
-from neuroseq.core.data import load_config, get_experiment_folder, load_yaml, gen_map_name
+from neuroseq.core.data import load_config, get_experiment_folder, load_yaml, gen_map_name, get_experiment_file
 
 
 class ParameterGroup:
@@ -86,7 +86,7 @@ class Parameters(ParameterGroup):
         if custom_params is not None:
             self.set_custom_params(custom_params)
 
-    def load_experiment_params(self, experiment_type, experiment_id, experiment_num, experiment_map,
+    def load_experiment_params(self, experiment_type, experiment_id, experiment_num, experiment_map=None,
                                experiment_subnum=None, instance_id=None, custom_params=None):
         if ((experiment_type == ExperimentType.EVAL_MULTI or experiment_type == ExperimentType.OPT_GRID_MULTI)
                 and instance_id is None):
@@ -96,7 +96,9 @@ class Parameters(ParameterGroup):
                                                        experiment_map=experiment_map,
                                                        experiment_subnum=experiment_subnum, instance_id=instance_id)
 
-        saved_params = load_yaml(experiment_folder_path, f"config_{self.config_type}.yaml")
+        config_file_name = get_experiment_file(FileNames.CONFIG[self.config_type])
+
+        saved_params = load_yaml(experiment_folder_path, config_file_name)
 
         self.set_params(self, saved_params)
 
