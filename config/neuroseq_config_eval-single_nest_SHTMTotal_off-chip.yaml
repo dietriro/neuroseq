@@ -45,6 +45,7 @@ plasticity:
   type: 'original'
 #  type: 'bss2'
 #  type: 'bss2_int'
+  location: 'off-chip'
   enable_structured_stdp: True
   learning_factor: 1    # 2 for int
   learning_rate_decay: null
@@ -81,6 +82,7 @@ replay:
   scaling_target: 0.8
   max_scaling_loc: 0.2
   threshold_delta_t_up: 55    # 55 for ambig, 58 for path
+  target: null
 neurons:
   inhibitory:
     c_m: 250.e-3      # nF in pyNN, pF in nest -> * 1/1000

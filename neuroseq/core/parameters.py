@@ -260,6 +260,7 @@ class NetworkParameterGroups:
     class Plasticity(ParameterGroup):
         def __init__(self):
             self.type: str = None
+            self.location: str = None
             self.enable_structured_stdp: bool = None
             self.execution_start: float = None
             self.execution_interval: float = None
@@ -296,6 +297,7 @@ class NetworkParameterGroups:
             self.scaling_target: float = None
             self.max_scaling_loc: float = None
             self.threshold_delta_t_up: int = None
+            self.target: int = None
 
     class Neurons(ParameterGroup):
         def __init__(self):
