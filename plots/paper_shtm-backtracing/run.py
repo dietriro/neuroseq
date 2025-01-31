@@ -8,7 +8,7 @@ shtm = SHTMTotal.load_full_state(network_type=SHTMTotal,
                                  custom_params=custom_params
                                  )
 
-shtm.set_state(NetworkState.REPLAY,
+shtm.set_state(NetworkMode.REPLAY,
                target=target
                )
 

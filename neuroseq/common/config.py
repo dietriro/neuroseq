@@ -90,7 +90,7 @@ class RunType(NamedStorage):
     SINGLE = "single"
 
 
-class NetworkState(NamedStorage):
+class NetworkMode(NamedStorage):
     PREDICTIVE = "predictive"
     REPLAY = "replay"
 
@@ -206,7 +206,7 @@ class RuntimeConfig(NamedStorage):
     plasticity_location = PlasticityLocation.OFF_CHIP
     backend_initialization = False
     config_prefix = "neuroseq_config"
-    file_prefix = NetworkState.PREDICTIVE
+    file_prefix = NetworkMode.PREDICTIVE
     plot_file_types = [PlotFileType.PNG, PlotFileType.PDF]
     subnum_digits = 2
     instance_digits = 2
