@@ -13,7 +13,6 @@ from os.path import join, dirname, split
 os.environ["HWLOC_COMPONENTS"] = "-gl"
 
 
-PY_PKG_PATH = split(dirname(neuroseq.__file__))[0]
 PY_PKG_PATH_DEFAULT = split(dirname(neuroseq.__file__))[0]
 
 
@@ -183,6 +182,11 @@ class LogHandler(NamedStorage):
     STREAM = 1
 
 
+def init_paths(cls):
+    cls.update_package_path(PY_PKG_PATH_DEFAULT)
+    return cls
+
+
 class RuntimeConfig(NamedStorage):
     backend = None
     plasticity_location = PlasticityLocation.OFF_CHIP
@@ -197,6 +201,7 @@ class RuntimeConfig(NamedStorage):
     saved_plasticity_vars = ["permanence", "permanence_min", "permanences", "weights", "x", "z"]
     saved_instance_params = []
 
+    @init_paths
     class Paths(NamedStorage):
         package = None
         config = None
@@ -222,8 +227,6 @@ class RuntimeConfig(NamedStorage):
                 Backends.NEST: join(cls.package, 'data/evaluation/nest'),
                 Backends.BRAIN_SCALES_2: join(cls.package, 'data/evaluation/bss2')
             }
-
-        update_package_path(PY_PKG_PATH_DEFAULT)
 
 
 # Logging
