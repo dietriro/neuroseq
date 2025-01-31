@@ -1,0 +1,12 @@
+nest:
+  predictive:
+    - experiment_id: "test"
+      experiment_num: 1
+      experiment_map: "ambiguous_03"
+  replay:
+    - experiment_id: "test"
+      experiment_num: 1
+      experiment_map: "path-planning_02"
+    - experiment_id: "test"
+      experiment_num: 1
+      experiment_map: "ambiguous_03"
