@@ -389,6 +389,12 @@ class SHTMBase(ABC):
                     receptor_type=self.p.synapses.receptor_inh_exc))
             self.inh_to_exc_global.append(inh_to_exc_global_i)
 
+    def init_plasticity_rule(self):
+        pass
+
+    def init_rec_exc(self):
+        pass
+
     def init_prerun(self):
         pass
 
