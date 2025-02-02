@@ -2,4 +2,4 @@
 jupyter
 PyNN
 nestml==6.0.0
-pygsl
+# pygsl     # fails on some systems
