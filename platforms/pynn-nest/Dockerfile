@@ -44,9 +44,16 @@ RUN conda env create -f /home/code/neuroseq/platforms/pynn-nest/environment.yaml
 SHELL ["conda", "run", "-n", "neuroseq", "/bin/bash", "-c"]
 # Add environment activation to bashrc
 RUN echo "source activate neuroseq" >> ~/.bashrc
+RUN echo "source activate neuroseq" > ~/.bash_profile
 
 # Install neuron model
 WORKDIR ${PATH_CODE}/neuroseq/models/mc
 RUN python ${PATH_CODE}/neuroseq/scripts/install_mc_neuron.py
+
+# Install pynn workaround to suppress unnecessary output
+WORKDIR ${PATH_CODE}
+RUN git clone -b fixes https://github.com/dietriro/PyNN.git
+WORKDIR ${PATH_CODE}/PyNN
+RUN pip install .
 
 WORKDIR ${PATH_CODE}/neuroseq
