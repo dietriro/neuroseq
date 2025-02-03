@@ -1,4 +1,8 @@
 import argparse
+try:
+    import docker
+except Exception:
+    pass
 
 from os.path import join
 import subprocess
@@ -68,9 +72,18 @@ def run_test_docker(backend, network_mode, test_index=0, generate_missing_checks
 
     add_params = "-g" if generate_missing_checksums else ""
 
-    # Initialize and run test
-    subprocess.run(f'docker run -it --rm --name neuroseq:{docker_backends[backend]} '
-                   f'python scripts/test_run.py {backend} {network_mode} -i {test_index} {add_params}')
+    # Initialize and start docker container
+    client = docker.from_env()
+    container = client.containers.run(image=f"neuroseq:{docker_backends[backend]}", command="/bin/bash",
+                                      remove=True, detach=True, tty=True, name="neuroseq")
+    # Run command in docker container to start test with given arguments
+    _, stream = container.exec_run(cmd=f"bash -cl 'python scripts/test_run.py "
+                                       f"{backend} {network_mode} -i {test_index} {add_params}'", stream=True)
+
+    for data in stream:
+        print(data.decode(), end='')
+
+    container.stop()
 
 
 if __name__ == '__main__':
