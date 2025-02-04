@@ -86,18 +86,20 @@ class Test(ABC):
         # Run simulation of new test
         self.network.run()
 
+        log.info("")
+
     def replay(self):
         """
         Runs an experiment in replay mode.
         """
-        log.info(f"\nRunning replay test with `experiment_id={self.experiment_id}`, "
-                 f"`experiment_num={self.experiment_num}`, and `experiment_map={self.experiment_map}`.\n")
-
         # Reset network state for prediction
         RuntimeConfig.file_prefix = NetworkMode.PREDICTIVE
 
         # Run prediction to learn sequences first
         self.predictive()
+
+        log.info(f"\nRunning replay test with `experiment_id={self.experiment_id}`, "
+                 f"`experiment_num={self.experiment_num}`, and `experiment_map={self.experiment_map}`.\n")
 
         # Reset network state for replay
         RuntimeConfig.file_prefix = NetworkMode.REPLAY
@@ -115,6 +117,8 @@ class Test(ABC):
         # Run replay
         self.network.run(steps=p_replay.experiment.episodes, plasticity_enabled=False,
                          runtime=p_replay.experiment.runtime)
+
+        log.info("")
 
     def save_network_data(self):
         """

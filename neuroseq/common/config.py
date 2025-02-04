@@ -218,12 +218,12 @@ class RuntimeConfig(NamedStorage):
 
     @init_paths
     class Paths(NamedStorage):
-        package = None
-        config = None
-        models = None
-        maps = None
-        folders_config = None
-        folders_experiment = None
+        package: str = None
+        config: str = None
+        models: str = None
+        maps: str = None
+        folders_config: dict = None
+        folders_experiment: dict = None
 
         @classmethod
         def update_package_path(cls, new_package_path):

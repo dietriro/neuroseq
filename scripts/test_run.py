@@ -16,27 +16,32 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Run a test of a neuroseq network by specifying the `backend` used'
                                                  'for simulation/emulation and the `mode` of the network.')
 
-    # Required positional argument
+    # The backend used for the experiment, nest/bss2
     parser.add_argument('backend', type=str,
                         help='The backend used for the test experiment: [`nest`, `bss2`]')
 
-    # Optional positional argument
+    # The network mode, predictive/replay
     parser.add_argument('network_mode', type=str,
                         help='The mode of the test network: [`predictive`, `replay`]')
 
-    # Switch
+    # Numerical index of test in config file
     parser.add_argument('-i', '--index', action='store', type=int, dest="test_index", default=0,
                         help='The index of the test case that should be used, default is 0.')
 
-    # Switch
+    # Whether to generate missing checksums
     parser.add_argument('-g', '--generate-missing-checksums',  action='store_true',
                         dest="generate_missing_checksums",
                         help='If set, missing checksum files will be generated using default values.')
 
-    # Switch
+    # Whether to run the test inside an isolated docker or not
     parser.add_argument('-d', '--docker', action='store_true',
                         dest="docker",
                         help='If set, the test is run in an isolated docker container.')
+
+    # Whether to load the local repository code into the docker or use the most current version pulled from the repo
+    parser.add_argument('-c', '--local-code', action='store_true',
+                        dest="local_code",
+                        help='If set, the local code of the repository is loaded into the docker container.')
 
     args = parser.parse_args()
 
@@ -66,15 +71,17 @@ def run_test_local(backend, network_mode, test_index=0, generate_missing_checksu
     test.run_test(network_mode, generate_missing_checksums=generate_missing_checksums)
 
 
-def run_test_docker(backend, network_mode, test_index=0, generate_missing_checksums=False):
+def run_test_docker(backend, network_mode, test_index=0, generate_missing_checksums=False, local_code=False):
     docker_backends = {Backends.NEST: 'pynn-nest', Backends.BRAIN_SCALES_2: 'bss2'}
 
     add_params = "-g" if generate_missing_checksums else ""
 
+    volumes = {RuntimeConfig.Paths.package: {'bind': "/home/code/neuroseq", 'mode': 'rw'}} if local_code else None
+
     # Initialize and start docker container
     client = docker.from_env()
     container = client.containers.run(image=f"neuroseq:{docker_backends[backend]}", command="/bin/bash",
-                                      remove=True, detach=True, tty=True, name="neuroseq")
+                                      volumes=volumes, remove=True, detach=True, tty=True, name="neuroseq")
     # Run command in docker container to start test with given arguments
     _, stream = container.exec_run(cmd=f"bash -cl 'python scripts/test_run.py "
                                        f"{backend} {network_mode} -i {test_index} {add_params}'", stream=True)
@@ -95,7 +102,7 @@ if __name__ == '__main__':
     # Run test
     if args.docker:
         run_test_docker(args.backend, args.network_mode, test_index=args.test_index,
-                        generate_missing_checksums=args.generate_missing_checksums)
+                        generate_missing_checksums=args.generate_missing_checksums, local_code=args.local_code)
     else:
         run_test_local(args.backend, args.network_mode, test_index=args.test_index,
                        generate_missing_checksums=args.generate_missing_checksums)
