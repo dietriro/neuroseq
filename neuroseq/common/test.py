@@ -122,7 +122,6 @@ class Test(ABC):
         """
         # Create and set temporary package path
         os.makedirs(join(self.pkg_path_tmp, "data"), exist_ok=True)
-        # RuntimeConfig.pkg_path = self.pkg_path_tmp
         RuntimeConfig.Paths.update_package_path(self.pkg_path_tmp)
 
         # Save the data from the experiment there

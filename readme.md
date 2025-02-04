@@ -161,7 +161,14 @@ During the network initialization, the BSS-2 has to run a **calibration** of the
 The remaining part of running the simulation is analogous to the execution on a host computer using PyNN-NEST. 
 
 
-## 3 References
+## 3 Known Bugs and Issues
+
+### 3.1 Code Tests
+
+The code integrity tests, which can be performed with `test_run.py`, may yield to slightly different results if newer package versions are used. This can lead for example to a slight difference in how an object is pickled compared to the pre-run tests saved in the `main` branch of the evaluation data.
+
+
+## 4 References
 
 
 [1]&nbsp;&nbsp;&nbsp; R. Dietrich, P. Spilger, E. Muller, J. Schemmel, and A. C. Knoll, “[Sequence Learning with Analog Neuromorphic Multi-Compartment Neurons and On-Chip Structural STDP](doi.org/),” in Lecture Notes of Computer Science, Springer Nature, TBP.

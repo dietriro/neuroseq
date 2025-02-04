@@ -3,6 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python>=3.5
+  - pip
   - anaconda
   - nest-simulator=3.6.0
   - boost-cpp

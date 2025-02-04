@@ -5,9 +5,8 @@ except Exception:
     pass
 
 from os.path import join
-import subprocess
 
-from neuroseq.common.config import NetworkMode, RuntimeConfig, Backends, NetworkMode
+from neuroseq.common.config import RuntimeConfig, Backends, NetworkMode
 from neuroseq.core.logging import log
 from neuroseq.core.data import load_yaml
 
