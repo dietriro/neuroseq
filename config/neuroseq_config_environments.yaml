@@ -25,4 +25,6 @@ map_path-planning_01:
   sequences: [[A, B, C, D, E, G, I], [A, B, C, F, H]]
 map_path-planning_02:
   sequences: [[A, B, C, D, E, G, I, J], [A, B, C, F, H, J]]
+map_simple_01:
+  sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
 #  sequences: [[A, B, C, D, E, G, I, J, H, F, C], [A, B, C, F, H, J, I, G, E]]
