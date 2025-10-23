@@ -182,11 +182,11 @@ class SHTMBase(ABC):
         self.neurons_inh_global = self.init_neurons_inh(num_neurons=1,
                                                         tau_refrac=self.p.neurons.inhibitory_global.tau_refrac)
 
-        # if self.p.network.ext_indiv:
+        # if self.p.input.ext_indiv:
         #     self.neurons_ext = [Population(self.p.network.num_neurons, SpikeSourceArray())
         #                         for _ in range(self.p.network.num_columns)]
         # else:
-        self.neurons_ext = Population(self.p.network.input_size, SpikeSourceArray())
+        self.neurons_ext = Population(self.p.input.size, SpikeSourceArray())
 
     @abstractmethod
     def init_all_neurons_exc(self, num_neurons=None):
@@ -214,7 +214,7 @@ class SHTMBase(ABC):
     def init_external_input(self, init_recorder=False, init_performance=False):
 
         num_symbols = SYMBOLS[max([max(seq_i) for seq_i in self.p.experiment.sequences])]+1
-        num_overlap = np.ceil(self.p.network.input_pattern_size * self.p.network.ext_overlap)
+        num_overlap = np.ceil(self.p.input.pattern_size * self.p.input.ext_overlap)
 
         spike_times = [list() for _ in range(num_symbols)]
         spike_time = None
@@ -230,9 +230,9 @@ class SHTMBase(ABC):
             for i_seq, sequence in enumerate(sequences):
                 for i_element, element in enumerate(sequence):
                     if self.network_mode == NetworkMode.REPLAY:
-                        if i_element == 0 and self.p.network.replay_mode == ReplayMode.PARALLEL:
+                        if i_element == 0 and self.p.replay.mode == ReplayMode.PARALLEL:
                             spike_time = self.p.encoding.t_exc_start
-                        elif i_element == 0 and self.p.network.replay_mode == ReplayMode.CONSECUTIVE:
+                        elif i_element == 0 and self.p.replay.mode == ReplayMode.CONSECUTIVE:
                             spike_time = sequence_offset + i_element * self.p.encoding.dt_stm
                         else:
                             break
@@ -250,11 +250,11 @@ class SHTMBase(ABC):
             log.debug(f'{i_col}: {spike_times[i_col]}')
 
         for i_sym in range(num_symbols):
-            for i_pattern in range(self.p.network.input_pattern_size):
-                start = i_sym * self.p.network.input_pattern_size
+            for i_pattern in range(self.p.input.pattern_size):
+                start = i_sym * self.p.input.pattern_size
                 if start > 0 and num_overlap > 0:
                     start -= num_overlap
-                end = start + self.p.network.input_pattern_size
+                end = start + self.p.input.pattern_size
 
                 self.neurons_ext[start:end].set(spike_times=spike_times[i_sym])
 
@@ -274,8 +274,8 @@ class SHTMBase(ABC):
             rng = np.random.default_rng(i_col)
 
             # generate a list of indices for pre-synaptic population (ext)
-            con_list = rng.choice(self.p.network.input_size,
-                                  int(self.p.network.input_con_prob * self.p.network.input_size), replace=False)
+            con_list = rng.choice(self.p.input.size,
+                                  int(self.p.synapses.p_ext_exc * self.p.input.size), replace=False)
             con_list_full = list()
             for i_pre in con_list:
                 for i_post in range(self.p.network.num_neurons):
@@ -670,7 +670,7 @@ class SHTMBase(ABC):
 
                 # plot external spikes as reference lines
                 # for i_sym in range(self.p.network.num_columns):
-                if self.p.network.ext_indiv:
+                if self.p.input.ext_indiv:
                     spikes_ext_i = deepcopy(self.spike_times_ext_indiv[i_symbol])
                     spikes_ext_i.insert(0, [])
                     if spike_offset > 0:

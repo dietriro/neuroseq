@@ -238,13 +238,14 @@ class NetworkParameterGroups:
 
     class Network(ParameterGroup):
         def __init__(self):
-            self.replay_mode: str = None
             self.num_columns: int = None
             self.num_neurons: int = None
             self.context_size: int = None
-            self.input_pattern_size: int = None
-            self.input_size: int = None
-            self.input_con_prob: float = None
+
+    class Input(ParameterGroup):
+        def __init__(self):
+            self.pattern_size: int = None
+            self.size: int = None
             self.ext_indiv: bool = None
             self.ext_overlap: float = None
 
@@ -296,6 +297,7 @@ class NetworkParameterGroups:
 
     class Replay(ParameterGroup):
         def __init__(self):
+            self.mode: str = None
             self.v_thresh: float = None
             self.theta_dAP: float = None
             self.weight_factor_exc_inh: float = None
@@ -367,6 +369,7 @@ class NetworkParameterGroups:
             self.w_inh_inhg: float = None
             self.w_inhg_exc: float = None
             self.p_exc_exc: float = None
+            self.p_ext_exc: float = None
             self.receptor_ext_exc: str = None
             self.receptor_exc_exc: str = None
             self.receptor_exc_inh: str = None

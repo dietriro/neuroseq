@@ -4,11 +4,6 @@ experiment:
   map_name: 'simple_01'
 #  map_name: 'ambiguous_03'
 #  map_name: 'path-planning_02'
-#  sequences: [['A', 'C', 'B'], ['D', 'C', 'B']]
-#  sequences: [[A, B, C], [D, C, B], [E, B, C]]
-#  sequences: [[A, D, B, E], [F, D, B, C]]
-#  sequences: [['E', 'N', 'D', 'I', 'J'], ['L', 'N', 'D', 'I', 'K'], ['G', 'J', 'M', 'C', 'N'], ['F', 'J', 'M', 'C', 'I'], ['B', 'C', 'K', 'H', 'I'], ['A', 'C', 'K', 'H', 'F']]
-#  sequences: [['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']]
   runtime: null
   episodes: 100
   run_add_calib: False
@@ -28,15 +23,14 @@ performance:
   method: "all_symbols"
   running_avgs: [ 0.25, 0.5, 0.75, 1.0 ]
 network:
-  replay_mode: "parallel"
   num_columns: 60  # 18
   num_neurons: 8
   context_size: 2
-  input_pattern_size: 10
-  input_size: 512
-  input_con_prob: 0.5
+input:
+  pattern_size: 10
+  size: 512
   ext_indiv: True
-  ext_overlap: 0
+  ext_overlap: 0.2
 backend:
   module_name: "nestml_mc01_module"
   neuron_name: "iaf_psc_exp_nonlineardendritemc01_nestml"
@@ -47,9 +41,7 @@ encoding:
   t_scaling_factor: 1.
   num_repetitions: 1
 plasticity:
-  type: 'original'
-#  type: 'bss2'
-#  type: 'bss2_int'
+  type: 'original'    # original, bss2, bss2_int
   location: 'off-chip'
   enable_structured_stdp: True
   learning_factor: 1    # 2 for int
@@ -75,6 +67,7 @@ plasticity:
   delta_t_max: 75
   dt: 0.1
 replay:
+  mode: "parallel"
   # probabilistic
   v_thresh: 6.5
   theta_dAP: 59       # 59 should work better
@@ -126,6 +119,7 @@ synapses:
   w_inhg_exc: 0.1
   w_exc_inh_global: 10
   p_exc_exc: 0.6
+  p_ext_exc: 0.5
   receptor_ext_exc: "I_1"
   receptor_exc_exc: "I_2"
   receptor_exc_inh: "excitatory"
