@@ -164,11 +164,11 @@ class NetworkParameters(Parameters):
             self.load_sequences_from_config()
 
         # set number of symbols dynamically if not set manually
-        if self.network.num_symbols is None:
+        if self.network.num_columns is None:
             max_symbol = ''
             for seq_i in self.experiment.sequences:
                 max_symbol = max(seq_i + [max_symbol])
-            self.network.num_symbols = SYMBOLS[max_symbol] + 1
+            self.network.num_columns = SYMBOLS[max_symbol] + 1
 
     def load_sequences_from_config(self):
         environments = load_yaml(RuntimeConfig.Paths.config, f"{RuntimeConfig.config_prefix}_environments.yaml")
@@ -239,10 +239,14 @@ class NetworkParameterGroups:
     class Network(ParameterGroup):
         def __init__(self):
             self.replay_mode: str = None
-            self.num_symbols: int = None
+            self.num_columns: int = None
             self.num_neurons: int = None
-            self.pattern_size: int = None
+            self.context_size: int = None
+            self.input_pattern_size: int = None
+            self.input_size: int = None
+            self.input_con_prob: float = None
             self.ext_indiv: bool = None
+            self.ext_overlap: float = None
 
     class Backend(ParameterGroup):
         def __init__(self):
@@ -359,6 +363,9 @@ class NetworkParameterGroups:
             self.w_exc_exc: float = None
             self.w_exc_inh: float = None
             self.w_inh_exc: float = None
+            self.w_inh_inh: float = None
+            self.w_inh_inhg: float = None
+            self.w_inhg_exc: float = None
             self.p_exc_exc: float = None
             self.receptor_ext_exc: str = None
             self.receptor_exc_exc: str = None

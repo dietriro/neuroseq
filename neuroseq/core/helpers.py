@@ -28,8 +28,8 @@ class Process(mp.Process):
         return self._exception
 
 
-def symbol_from_label(label, endpoint):
-    return label.split('_')[1].split('>')[endpoint]
+def column_from_label(label, endpoint):
+    return int(label.split('_')[1].split('>')[endpoint])
 
 
 def id_to_symbol(index):

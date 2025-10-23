@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from neuroseq.common.config import SYMBOLS, NeuronType, RuntimeConfig, Backends
+from neuroseq.common.config import NeuronType, RuntimeConfig, Backends
 from neuroseq.common import network
-from neuroseq.core.helpers import symbol_from_label, calculate_trace
+from neuroseq.core.helpers import column_from_label, calculate_trace
 from neuroseq.core.logging import log
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
@@ -71,8 +71,8 @@ class Plasticity(ABC):
 
         self.learning_rules = {"original": self.rule, "bss2": self.rule_bss2}
 
-        self.symbol_id_pre = SYMBOLS[symbol_from_label(self.projection.label, network.ID_PRE)]
-        self.symbol_id_post = SYMBOLS[symbol_from_label(self.projection.label, network.ID_POST)]
+        self.column_id_pre = column_from_label(self.projection.label, network.ID_PRE)
+        self.column_id_post = column_from_label(self.projection.label, network.ID_POST)
 
         self.connections = list()
 
@@ -288,11 +288,11 @@ class Plasticity(ABC):
     def enable_weights_logging(self):
         self.weights = [np.copy(self.projection.get("weight", format="array").flatten())]
 
-    def get_pre_symbol(self):
-        return symbol_from_label(self.projection.label, network.ID_PRE)
+    def get_pre_column(self):
+        return column_from_label(self.projection.label, network.ID_PRE)
 
-    def get_post_symbol(self):
-        return symbol_from_label(self.projection.label, network.ID_POST)
+    def get_post_column(self):
+        return column_from_label(self.projection.label, network.ID_POST)
 
     def get_connection_ids(self, connection_id):
         connection_ids = (f"{self.get_connection_id_pre(self.get_connections()[connection_id])}>"
@@ -333,9 +333,9 @@ class Plasticity(ABC):
         if self.connections is None or len(self.connections) <= 0:
             self.init_connections()
 
-        spikes_pre = self.shtm.neuron_events[NeuronType.Soma][self.symbol_id_pre]
-        spikes_post_dendrite = self.shtm.neuron_events[NeuronType.Dendrite][self.symbol_id_post]
-        spikes_post_soma = self.shtm.neuron_events[NeuronType.Soma][self.symbol_id_post]
+        spikes_pre = self.shtm.neuron_events[NeuronType.Soma][self.column_id_pre]
+        spikes_post_dendrite = self.shtm.neuron_events[NeuronType.Dendrite][self.column_id_post]
+        spikes_post_soma = self.shtm.neuron_events[NeuronType.Soma][self.column_id_post]
 
         weight = self.projection.get("weight", format="array")
         weight_before = np.copy(weight)
@@ -344,7 +344,7 @@ class Plasticity(ABC):
             neuron_spikes_pre = spikes_pre[j]
             neuron_spikes_post_dendrite = spikes_post_dendrite[i]
             neuron_spikes_post_soma = spikes_post_soma[i]
-            z = self.shtm.trace_dendrites[self.symbol_id_post, i]
+            z = self.shtm.trace_dendrites[self.column_id_post, i]
 
             # if self.debug:
             #     log.debug(f"Permanence calculation for connection {c} [{i}, {j}]")

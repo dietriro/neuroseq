@@ -9,7 +9,6 @@ from neuroseq.nest.config import *
 from neuroseq.nest.learning import Plasticity
 from neuroseq.core.logging import log
 from neuroseq.common import network
-from neuroseq.core.helpers import id_to_symbol
 from neuroseq.common.config import NeuronType, RecTypes
 
 import nest
@@ -43,9 +42,9 @@ class SHTMBase(network.SHTMBase, ABC):
 
     def init_all_neurons_exc(self, num_neurons=None):
         neurons_exc = list()
-        for i in range(self.p.network.num_symbols):
+        for i in range(self.p.network.num_columns):
             # create all neurons for symbol i
-            neurons_symbol = self.init_neurons_exc(num_neurons=num_neurons, symbol_id=i)
+            neurons_symbol = self.init_neurons_exc(num_neurons=num_neurons, column_id=i)
 
             # record voltage and spikes from all dendrites/somas
             neurons_symbol.record([RECORDING_VALUES[NeuronType.Dendrite][RecTypes.SPIKES],
@@ -63,7 +62,7 @@ class SHTMBase(network.SHTMBase, ABC):
 
         return neurons_exc
 
-    def init_neurons_exc(self, num_neurons=None, symbol_id=None):
+    def init_neurons_exc(self, num_neurons=None, column_id=None):
         if num_neurons is None:
             num_neurons = self.p.network.num_neurons
 
@@ -84,13 +83,13 @@ class SHTMBase(network.SHTMBase, ABC):
         ), initial_values={
             "V_m": self.p.neurons.excitatory.v_rest,
             # "I_dend": 0
-        }, label=f"exc_{id_to_symbol(symbol_id)}")
+        }, label=f"exc_{column_id}")
 
         return all_neurons
 
     def init_neurons_inh(self, num_neurons=None, tau_refrac=None):
         if num_neurons is None:
-            num_neurons = self.p.network.num_symbols
+            num_neurons = self.p.network.num_columns
 
         if tau_refrac is None:
             tau_refrac = self.p.neurons.inhibitory.tau_refrac
@@ -122,7 +121,6 @@ class SHTMBase(network.SHTMBase, ABC):
         if init_recorder:
             self.neurons_ext.record(["spikes"])
 
-
     def reset(self, store_to_cache=False):
         # ToDo: Have a look if we can keep pynn from running 'store_to_cache' - this takes about a second for 5 epochs
         if "store_to_cache" in inspect.getcallargs(pynn.reset).keys():
@@ -137,7 +135,7 @@ class SHTMBase(network.SHTMBase, ABC):
 
         self.run_state = False
 
-    def get_neurons(self, neuron_type, symbol_id=None):
+    def get_neurons(self, neuron_type, column_id=None):
         neurons = None
         if neuron_type == NeuronType.Inhibitory:
             neurons = self.neurons_inh
@@ -146,19 +144,19 @@ class SHTMBase(network.SHTMBase, ABC):
         elif neuron_type in [NeuronType.Dendrite, NeuronType.Soma]:
             neurons = self.neurons_exc
 
-        if symbol_id is None:
+        if column_id is None:
             return neurons
         else:
             if neuron_type == NeuronType.Inhibitory or neuron_type == NeuronType.InhibitoryGlobal:
-                return pynn.PopulationView(neurons, [symbol_id])
+                return pynn.PopulationView(neurons, [column_id])
             else:
-                return neurons[symbol_id]
+                return neurons[column_id]
 
-    def get_neuron_data(self, neuron_type, neurons=None, value_type="spikes", symbol_id=None, neuron_id=None,
+    def get_neuron_data(self, neuron_type, neurons=None, value_type="spikes", column_id=None, neuron_id=None,
                         runtime=None, dtype=None):
         if neurons is None:
             neurons = self.get_neurons(neuron_type,
-                                       symbol_id=symbol_id if neuron_type is not NeuronType.InhibitoryGlobal else None)
+                                       column_id=column_id if neuron_type is not NeuronType.InhibitoryGlobal else None)
 
         if value_type == RecTypes.SPIKES:
             if neuron_type == NeuronType.Dendrite:
