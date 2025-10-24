@@ -21,9 +21,9 @@ events:
   fontsize:
     title: 26
     legend: 18
-    axis_labels: 26
-    subplot_labels: 20
-    tick_labels: 18
+    axis_labels: 20
+    subplot_labels: 10
+    tick_labels: 8
   location:
     legend_x: 0.18
     legend_y: 0.01

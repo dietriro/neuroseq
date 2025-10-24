@@ -697,11 +697,16 @@ class SHTMBase(ABC):
                     ax.eventplot(spikes_ext_i, linewidths=self.p_plot.events.events.width,
                                  linelengths=self.p_plot.events.events.height, label="External", color=f"grey")
                 else:
-                    for spike_times_ext in self.spike_times_ext:
+                    for k_symbol, spike_times_ext in enumerate(self.spike_times_ext):
                         for spike_time_ext_sym_i in spike_times_ext:
+                            if spike_time_ext_sym_i > x_lim_upper or spike_time_ext_sym_i < x_lim_lower:
+                                continue
                             ax.plot([spike_time_ext_sym_i, spike_time_ext_sym_i], [0.6, self.p.network.num_neurons + 0.4],
                                     c="grey",
                                     label="External")
+                            if i_symbol == 0:
+                                ax.text(spike_time_ext_sym_i, 10, id_to_symbol(k_symbol), fontsize=16, weight='bold',
+                                        color='grey', ha='center')
 
                 # Configure the plot layout
                 ax.set_xlim(x_lim_lower, x_lim_upper)
