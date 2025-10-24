@@ -30,6 +30,8 @@ input:
   pattern_size: 10
   size: 512
   ext_indiv: True
+  data_type: 'file'
+  ext_indiv: False
   ext_overlap: 0.2
 backend:
   module_name: "nestml_mc01_module"

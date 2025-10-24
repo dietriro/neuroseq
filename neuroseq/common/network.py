@@ -27,7 +27,7 @@ from neuroseq.core.helpers import (Process, id_to_symbol, calculate_trace,
                                    psp_max_2_psc_max)
 from neuroseq.common.plot import plot_dendritic_events
 from neuroseq.core.data import (save_experimental_setup, save_instance_setup, get_experiment_folder,
-                                get_experiment_file)
+                                get_experiment_file, load_input_data)
 from neuroseq.core.map import Map, LabelTypes
 
 if RuntimeConfig.backend == Backends.BRAIN_SCALES_2:
@@ -207,7 +207,25 @@ class SHTMBase(ABC):
     def init_neurons_inh(self, num_neurons=None, tau_refrac=None):
         pass
 
-    def init_external_input(self, init_recorder=False, init_performance=False):
+    def init_external_input(self, input_data=None, init_recorder=False, init_performance=False):
+        if input_data is None and self.p.input.data_type == "generated":
+            self.generate_external_input(init_recorder=init_recorder, init_performance=init_performance)
+        elif self.p.input.data_type == "file":
+            self.input_data = load_input_data(self.p.experiment.map_name)
+            self.set_external_input()
+
+
+    def set_external_input(self, input_data=None):
+        if input_data is None:
+            if self.input_data is None:
+                raise ValueError("No input data provided and classes input data is empty.")
+            else:
+                input_data = self.input_data
+
+        self.generate_external_input(ext_ids=input_data["data"])
+
+
+    def generate_external_input(self, ext_ids=None, init_recorder=False, init_performance=False):
 
         num_symbols = SYMBOLS[max([max(seq_i) for seq_i in self.p.experiment.sequences])]+1
         num_overlap = int(np.ceil(self.p.input.pattern_size * self.p.input.ext_overlap))
@@ -245,17 +263,22 @@ class SHTMBase(ABC):
         for i_col, col_spikes in enumerate(spike_times):
             log.debug(f'{i_col}: {spike_times[i_col]}')
 
-        for i_sym in range(num_symbols):
-            for i_pattern in range(self.p.input.pattern_size):
-                start = i_sym * self.p.input.pattern_size
-                if start > 0 and num_overlap > 0:
-                    start -= num_overlap
-                end = start + self.p.input.pattern_size
+        if ext_ids is None:
+            # generate external neuron id's continuously based on pattern size
+            for i_sym in range(num_symbols):
+                for i_pattern in range(self.p.input.pattern_size):
+                    start = i_sym * self.p.input.pattern_size
+                    if start > 0 and num_overlap > 0:
+                        start -= num_overlap
+                    end = start + self.p.input.pattern_size
 
-                self.neurons_ext[start:end].set(spike_times=spike_times[i_sym])
+                    self.neurons_ext[start:end].set(spike_times=spike_times[i_sym])
+        else:
+            # use provided external neuron id's instead
+            for i_sym in range(num_symbols):
+                self.neurons_ext[ext_ids[id_to_symbol(i_sym)]].set(spike_times=spike_times[i_sym])
 
         self.spike_times_ext = spike_times
-        # self.spike_times_ext_indiv = spike_times
 
         if init_performance:
             log.info(f'Initialized external input for sequence(s) {self.p.experiment.sequences}')

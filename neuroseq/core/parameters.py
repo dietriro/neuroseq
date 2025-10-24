@@ -245,6 +245,7 @@ class NetworkParameterGroups:
 
     class Input(ParameterGroup):
         def __init__(self):
+            self.data_type: str = None
             self.pattern_size: int = None
             self.size: int = None
             self.ext_indiv: bool = None

@@ -222,6 +222,7 @@ class RuntimeConfig(NamedStorage):
         config: str = None
         models: str = None
         maps: str = None
+        input: str = None
         folders_config: dict = None
         folders_experiment: dict = None
 
@@ -232,6 +233,7 @@ class RuntimeConfig(NamedStorage):
             cls.config = join(cls.package, 'config')
             cls.models = join(cls.package, 'models')
             cls.maps = join(cls.package, 'data', 'maps')
+            cls.input = join(cls.package, 'data', 'input')
 
             cls.folders_config = {
                 ConfigType.NETWORK: cls.config,

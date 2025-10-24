@@ -393,3 +393,9 @@ def gen_map_name(map_name):
         map_name = ""
         log.warning("Map name is None. Setting it to an empty string now.")
     return f"map_{map_name}"
+
+
+def load_input_data(map_name):
+    input_path = os.path.join(RuntimeConfig.Paths.input, f"input_{map_name}.yaml")
+
+    return load_yaml(input_path)
