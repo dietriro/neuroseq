@@ -144,6 +144,7 @@ class NetworkParameters(Parameters):
         self.plotting = NetworkParameterGroups.Plotting()
         self.performance = NetworkParameterGroups.Performance()
         self.network = NetworkParameterGroups.Network()
+        self.input = NetworkParameterGroups.Input()
         self.backend = NetworkParameterGroups.Backend()
         self.encoding = NetworkParameterGroups.Encoding()
         self.plasticity = NetworkParameterGroups.Plasticity()

@@ -182,10 +182,6 @@ class SHTMBase(ABC):
         self.neurons_inh_global = self.init_neurons_inh(num_neurons=1,
                                                         tau_refrac=self.p.neurons.inhibitory_global.tau_refrac)
 
-        # if self.p.input.ext_indiv:
-        #     self.neurons_ext = [Population(self.p.network.num_neurons, SpikeSourceArray())
-        #                         for _ in range(self.p.network.num_columns)]
-        # else:
         self.neurons_ext = Population(self.p.input.size, SpikeSourceArray())
 
     @abstractmethod
@@ -214,7 +210,7 @@ class SHTMBase(ABC):
     def init_external_input(self, init_recorder=False, init_performance=False):
 
         num_symbols = SYMBOLS[max([max(seq_i) for seq_i in self.p.experiment.sequences])]+1
-        num_overlap = np.ceil(self.p.input.pattern_size * self.p.input.ext_overlap)
+        num_overlap = int(np.ceil(self.p.input.pattern_size * self.p.input.ext_overlap))
 
         spike_times = [list() for _ in range(num_symbols)]
         spike_time = None
