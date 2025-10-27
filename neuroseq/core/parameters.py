@@ -372,6 +372,7 @@ class NetworkParameterGroups:
             self.w_inhg_exc: float = None
             self.p_exc_exc: float = None
             self.p_ext_exc: float = None
+            self.ext_min_overlap: float = None
             self.receptor_ext_exc: str = None
             self.receptor_exc_exc: str = None
             self.receptor_exc_inh: str = None
