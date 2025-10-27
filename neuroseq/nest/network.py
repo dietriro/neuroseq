@@ -71,6 +71,7 @@ class SHTMBase(network.SHTMBase, ABC):
             theta_dAP=self.p.neurons.dendrite.theta_dAP,
             I_p=self.p.neurons.dendrite.I_p,
             tau_dAP=self.p.neurons.dendrite.tau_dAP,
+            inc_dAP=self.p.neurons.dendrite.inc_dAP,
             C_m=self.p.neurons.excitatory.c_m,
             E_L=self.p.neurons.excitatory.v_rest,
             V_reset=self.p.neurons.excitatory.v_reset,

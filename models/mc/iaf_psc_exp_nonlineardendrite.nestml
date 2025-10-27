@@ -9,6 +9,8 @@ neuron iaf_psc_exp_nonlineardendrite:
         dAP_counts integer = 0
         ref_counts integer = 0
 
+        I_dend_out pA = 0pA
+
     equations:
         # exponential shaped postsynaptic current kernel
         kernel I_kernel1 = exp(-1/tau_syn1*t)
@@ -21,7 +23,7 @@ neuron iaf_psc_exp_nonlineardendrite:
 
         # diff. eq. for membrane potential
         recordable inline I_dend pA = convolve(I_kernel2, I_2) * pA
-        inline I_syn pA = convolve(I_kernel1, I_1) * pA + I_dend - convolve(I_kernel3, I_3) * pA + I_e
+        inline I_syn pA = convolve(I_kernel1, I_1) * pA + I_dend_out - convolve(I_kernel3, I_3) * pA + I_e
         V_m' = -(V_m-E_L)/tau_m + I_syn/C_m
 
         # diff. eq. for dAP trace
@@ -43,6 +45,7 @@ neuron iaf_psc_exp_nonlineardendrite:
         theta_dAP pA = 60pA              # current threshold for a dendritic action potential
         I_p pA = 250pA                   # current clamp value for I_dAP during a dendritic action potential
         tau_dAP ms = 60ms                # time window over which the dendritic current clamp is active
+        inc_dAP real = 1.0               # incremental factor for multi-dAP events
 
         # refractory parameters
         t_ref ms = 10ms                            # refractory period
@@ -67,19 +70,31 @@ neuron iaf_psc_exp_nonlineardendrite:
         if I_dend > theta_dAP or active_dendrite:
             if dAP_counts == 0:
                 if active_dendrite == false:
+                    # initiate first plateau
                     z += 1pA
                     active_dendrite = true
-                    I_dend = I_p
+                    I_dend_out = I_p
+                    I_dend = 0pA
                     dAP_counts = dAP_timeout_ticks
                     dAP = 1.0
                 else:
+                    # reset dendrite after plateau
+                    I_dend_out = 0pA
                     I_dend = 0pA
                     active_dendrite = false
                     dAP = 0.0
             else:
-                dAP_counts -= 1
-                I_dend = I_p
-                dAP = 0.0
+                if active_dendrite and I_dend > theta_dAP:
+                    z += 1pA
+                    I_dend_out = I_p * inc_dAP
+                    I_dend = 0pA
+                    dAP_counts = dAP_timeout_ticks
+                    dAP = 1.0
+                else:
+                    # decrement dendrite during plateau
+                    dAP_counts -= 1
+                    I_dend_out = I_p
+                    dAP = 0.0
 
         # threshold crossing and refractoriness
         if ref_counts == 0:
@@ -88,6 +103,7 @@ neuron iaf_psc_exp_nonlineardendrite:
                 ref_counts = ref_timeout_ticks
                 V_m = V_reset
                 dAP_counts = 0
+                I_dend_out = 0pA
                 I_dend = 0pA
                 active_dendrite = false
         else:
@@ -95,4 +111,5 @@ neuron iaf_psc_exp_nonlineardendrite:
             V_m = V_reset
             active_dendrite = false
             dAP_counts = 0
+            I_dend_out = 0pA
             I_dend = 0pA

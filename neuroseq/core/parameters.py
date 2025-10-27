@@ -357,6 +357,7 @@ class NetworkParameterGroups:
             self.I_p: float = None
             self.tau_dAP: float = None
             self.theta_dAP: float = None
+            self.inc_dAP: float = None
 
     class Synapses(ParameterGroup):
         def __init__(self):

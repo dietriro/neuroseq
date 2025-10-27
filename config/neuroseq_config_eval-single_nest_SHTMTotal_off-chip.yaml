@@ -109,6 +109,7 @@ neurons:
     I_p: 200
     tau_dAP: 60
     theta_dAP: 59
+    inc_dAP: 1.0
 synapses:
   dyn_inh_weights: False
   dyn_weight_calculation: True
