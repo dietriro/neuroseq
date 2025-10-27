@@ -275,8 +275,16 @@ class SHTMBase(ABC):
                     self.neurons_ext[start:end].set(spike_times=spike_times[i_sym])
         else:
             # use provided external neuron id's instead
+            neuronal_spike_times = dict()
             for i_sym in range(num_symbols):
-                self.neurons_ext[ext_ids[id_to_symbol(i_sym)]].set(spike_times=spike_times[i_sym])
+                for i_neuron in ext_ids[id_to_symbol(i_sym)]:
+                    if i_neuron not in neuronal_spike_times.keys():
+                        neuronal_spike_times[i_neuron] = deepcopy(spike_times[i_sym])
+                    else:
+                        neuronal_spike_times[i_neuron] += deepcopy(spike_times[i_sym])
+
+            for i_neuron, spike_times_i in neuronal_spike_times.items():
+                self.neurons_ext[i_neuron].spike_times = sorted(spike_times_i)
 
         self.spike_times_ext = spike_times
 
@@ -885,7 +893,7 @@ class SHTMBase(ABC):
             for neuron_id in neuron_range:
                 # add spikes to list for printing
                 spike_times[0].append(np.array(spikes[neuron_id]).round(5).tolist())
-                header_spikes.append(f"{id_to_symbol(alphabet_id)}[{neuron_id}]")
+                header_spikes.append(f"{alphabet_id}[{neuron_id}]")
 
                 # retrieve voltage data
                 data_v = self.get_neuron_data(neuron_type, value_type=RecTypes.V, column_id=alphabet_id,
