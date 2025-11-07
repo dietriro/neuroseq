@@ -113,6 +113,7 @@ neurons:
 synapses:
   dyn_inh_weights: False
   dyn_weight_calculation: True
+  global_inhibition: 'direct'   # options: direct, interneuron, off
   w_exc_inh_dyn: null
   w_ext_exc: 4.1122
   w_exc_exc: 0.0e-3

@@ -363,6 +363,7 @@ class NetworkParameterGroups:
         def __init__(self):
             self.dyn_inh_weights: bool = None
             self.dyn_weight_calculation: bool = None
+            self.global_inhibition: bool = None
             self.w_exc_inh_dyn: float = None
             self.w_ext_exc: float = None
             self.w_exc_exc: float = None

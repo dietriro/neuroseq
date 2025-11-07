@@ -364,22 +364,36 @@ class SHTMBase(ABC):
                 receptor_type=self.p.synapses.receptor_inh_exc))
 
         self.inh_to_inh_global = []
-        for i in range(self.p.network.num_columns):
-            self.inh_to_inh_global.append(Projection(
-                PopulationView(self.neurons_inh, [i]),
-                self.neurons_inh_global,
-                AllToAllConnector(),
-                synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_inhg, delay=0.1),
-                receptor_type=self.p.synapses.receptor_exc_inh))
-
         self.inh_to_exc_global = []
-        for i_col in range(self.p.network.num_columns):
-            self.inh_to_exc_global.append(Projection(
-                self.neurons_inh_global,
-                self.get_neurons(NeuronType.Soma, column_id=i_col),
-                AllToAllConnector(),
-                synapse_type=StaticSynapse(weight=self.p.synapses.w_inhg_exc, delay=0.1),
-                receptor_type=self.p.synapses.receptor_inh_exc))
+
+        if self.p.synapses.global_inhibition == GlobalInhibition.INTERNEURON:
+            for i in range(self.p.network.num_columns):
+                self.inh_to_inh_global.append(Projection(
+                    PopulationView(self.neurons_inh, [i]),
+                    self.neurons_inh_global,
+                    AllToAllConnector(),
+                    synapse_type=StaticSynapse(weight=self.p.synapses.w_inh_inhg, delay=0.1),
+                    receptor_type=self.p.synapses.receptor_exc_inh))
+
+            for i_col in range(self.p.network.num_columns):
+                self.inh_to_exc_global.append(Projection(
+                    self.neurons_inh_global,
+                    self.get_neurons(NeuronType.Soma, column_id=i_col),
+                    AllToAllConnector(),
+                    synapse_type=StaticSynapse(weight=self.p.synapses.w_inhg_exc, delay=0.1),
+                    receptor_type=self.p.synapses.receptor_inh_exc))
+
+        elif self.p.synapses.global_inhibition == GlobalInhibition.DIRECT:
+            for i_col in range(self.p.network.num_columns):
+                for k_col in range(self.p.network.num_columns):
+                    if i_col == k_col:
+                        continue
+                    self.inh_to_exc_global.append(Projection(
+                        PopulationView(self.neurons_inh, [i_col]),
+                        self.get_neurons(NeuronType.Soma, column_id=k_col),
+                        AllToAllConnector(),
+                        synapse_type=StaticSynapse(weight=self.p.synapses.w_inhg_exc, delay=0.1),
+                        receptor_type=self.p.synapses.receptor_inh_exc))
 
     def init_plasticity_rule(self):
         pass

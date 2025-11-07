@@ -117,6 +117,12 @@ class SomaState(NamedStorage):
     ACTIVE = "active"
 
 
+class GlobalInhibition(NamedStorage):
+    DIRECT = "direct"
+    INTERNEURON = "interneuron"
+    OFF = "off"
+
+
 class Colors(NamedStorage):
     BLACK = "black"
     GREY = "grey"
