@@ -586,7 +586,9 @@ class SHTMBase(ABC):
             return
 
         if type(neuron_types) is str and neuron_types == "all":
-            neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory, NeuronType.InhibitoryGlobal]
+            neuron_types = [NeuronType.Dendrite, NeuronType.Soma, NeuronType.Inhibitory,
+                            # NeuronType.InhibitoryGlobal
+                            ]
         elif type(neuron_types) is list:
             pass
         else:
@@ -887,19 +889,31 @@ class SHTMBase(ABC):
 
         fig, ax = plt.subplots(figsize=size)
 
-        for alphabet_id in alphabet_range:
-            # retrieve and save spike times
-            spikes = self.neuron_events[neuron_type][alphabet_id]
-            for neuron_id in neuron_range:
-                # add spikes to list for printing
-                spike_times[0].append(np.array(spikes[neuron_id]).round(5).tolist())
-                header_spikes.append(f"{alphabet_id}[{neuron_id}]")
+        if neuron_type == NeuronType.InhibitoryGlobal:
+            spikes = self.neuron_events[neuron_type][0]
+            spike_times[0].append(np.array(spikes).round(5).tolist())
 
-                # retrieve voltage data
-                data_v = self.get_neuron_data(neuron_type, value_type=RecTypes.V, column_id=alphabet_id,
-                                              neuron_id=neuron_id, runtime=runtime)
+            header_spikes.append(f"Inhibitory Global Neuron")
 
-                ax.plot(data_v.times, data_v, alpha=0.5, label=header_spikes[-1])
+            # retrieve voltage data
+            data_v = self.get_neuron_data(neuron_type, value_type=RecTypes.V, column_id=0,
+                                          neuron_id=0, runtime=runtime)
+
+            ax.plot(data_v.times, data_v, alpha=0.5, label=header_spikes[-1])
+        else:
+            for alphabet_id in alphabet_range:
+                # retrieve and save spike times
+                spikes = self.neuron_events[neuron_type][alphabet_id]
+                for neuron_id in neuron_range:
+                    # add spikes to list for printing
+                    spike_times[0].append(np.array(spikes[neuron_id]).round(5).tolist())
+                    header_spikes.append(f"{alphabet_id}[{neuron_id}]")
+
+                    # retrieve voltage data
+                    data_v = self.get_neuron_data(neuron_type, value_type=RecTypes.V, column_id=alphabet_id,
+                                                  neuron_id=neuron_id, runtime=runtime)
+
+                    ax.plot(data_v.times, data_v, alpha=0.5, label=header_spikes[-1])
 
         # ax.xaxis.set_ticks(np.arange(0.02, 0.06, 0.01))
         ax.tick_params(axis='x', labelsize=18)
@@ -1241,6 +1255,8 @@ class SHTMTotal(SHTMBase, ABC):
                     max_spike_time = max(neuron_events)
                     if max_spike_time > self.max_spike_time:
                         self.max_spike_time = float(max_spike_time)
+                if neuron_type == NeuronType.InhibitoryGlobal:
+                    break
 
     def get_spike_times(self, runtime, dt):
         log.detail("Calculating spike times")
